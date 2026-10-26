@@ -1,0 +1,2000 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Open source under the Unlicense (public domain) — https://github.com/jeffwoods/climbing-wall-designer -->
+<title>Garage Climbing Wall — Parametric Designer</title>
+<style>
+/* ---------- design tokens ---------- */
+:root{
+  color-scheme: light;
+  --c-page:#f9f9f7; --c-surface:#fcfcfb; --c-sunken:#f0efec;
+  --c-ink:#0b0b0b; --c-ink2:#52514e; --c-muted:#898781;
+  --c-grid:#e1e0d9; --c-hairline:rgba(11,11,11,.10); --c-baseline:#c3c2b7;
+  --c-accent:#eb6834; --c-accent-ink:#b64517; --c-good:#006300;
+  --c-canvas:#f4f3ef; --c-wallfaint:#e9e8e2; --c-floorgrid:#dedcd3;
+  --ramp-0:#86b6ef; --ramp-1:#5598e7; --ramp-2:#2a78d6; --ramp-3:#1c5cab; --ramp-4:#104281;
+  --sel:#eb6834; --facetline:rgba(10,15,25,0.32);
+  --dwg-ply:#ead9b8; --dwg-lumber:#cfe3d9; --dwg-exist:#e7e6df; --frame-lumber:#1f7a52;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --c-page:#0d0d0d; --c-surface:#1a1a19; --c-sunken:#141413;
+    --c-ink:#ffffff; --c-ink2:#c3c2b7; --c-muted:#898781;
+    --c-grid:#2c2c2a; --c-hairline:rgba(255,255,255,.10); --c-baseline:#383835;
+    --c-accent:#d95926; --c-accent-ink:#f0824f; --c-good:#0ca30c;
+    --c-canvas:#161615; --c-wallfaint:#222220; --c-floorgrid:#262624;
+    --ramp-0:#9ec5f4; --ramp-1:#6da7ec; --ramp-2:#3987e5; --ramp-3:#256abf; --ramp-4:#184f95;
+    --sel:#f0824f; --facetline:rgba(235,240,250,0.22);
+    --dwg-ply:#4d4026; --dwg-lumber:#28443a; --dwg-exist:#262624; --frame-lumber:#66c49a;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --c-page:#0d0d0d; --c-surface:#1a1a19; --c-sunken:#141413;
+  --c-ink:#ffffff; --c-ink2:#c3c2b7; --c-muted:#898781;
+  --c-grid:#2c2c2a; --c-hairline:rgba(255,255,255,.10); --c-baseline:#383835;
+  --c-ink:#ffffff; --c-accent:#d95926; --c-accent-ink:#f0824f; --c-good:#0ca30c;
+  --c-canvas:#161615; --c-wallfaint:#222220; --c-floorgrid:#262624;
+  --ramp-0:#9ec5f4; --ramp-1:#6da7ec; --ramp-2:#3987e5; --ramp-3:#256abf; --ramp-4:#184f95;
+  --sel:#f0824f; --facetline:rgba(235,240,250,0.22);
+  --dwg-ply:#4d4026; --dwg-lumber:#28443a; --dwg-exist:#262624; --frame-lumber:#66c49a;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--c-page); color:var(--c-ink);
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums}
+button{font:inherit; cursor:pointer}
+button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--c-accent); outline-offset:1px}
+
+/* ---------- app shell ---------- */
+#app{display:flex; flex-direction:column; min-height:100vh}
+header.bar{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:10px 18px; border-bottom:1px solid var(--c-grid); background:var(--c-surface);
+  position:sticky; top:0; z-index:20;
+}
+.brand{display:flex; flex-direction:column; gap:1px; margin-right:auto}
+.brand .eyebrow{font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--c-accent-ink); font-weight:600}
+.brand h1{font-size:16px; font-weight:650; margin:0; letter-spacing:-.01em}
+.bar-actions{display:flex; gap:8px; flex-wrap:wrap}
+.btn{
+  border:1px solid var(--c-grid); background:var(--c-surface); color:var(--c-ink);
+  border-radius:6px; padding:6px 12px; font-size:13px; font-weight:550;
+}
+.btn:hover{border-color:var(--c-baseline); background:var(--c-sunken)}
+a.btn{text-decoration:none; display:inline-flex; align-items:center}
+.btn.primary{background:var(--c-accent); border-color:var(--c-accent); color:#fff}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.small{padding:3px 9px; font-size:12px}
+
+.workspace{display:flex; align-items:stretch; flex:1; min-height:0}
+aside#panel{
+  width:292px; flex:none; border-right:1px solid var(--c-grid); background:var(--c-surface);
+  overflow-y:auto; padding:10px 14px 30px;
+}
+main#stage{flex:1; min-width:0; display:flex; flex-direction:column}
+
+/* controls */
+details.grp{border-bottom:1px solid var(--c-grid); padding:2px 0 10px; margin-bottom:4px}
+details.grp summary::-webkit-details-marker{display:none}
+details.grp summary{
+  cursor:pointer; list-style:none; padding:8px 0 6px;
+  font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--c-ink2); font-weight:650;
+  display:flex; align-items:center; gap:6px;
+}
+details.grp summary::before{content:"▸"; color:var(--c-muted); font-size:10px; transition:transform .12s}
+@media (prefers-reduced-motion: reduce){ details.grp summary::before{transition:none} }
+details.grp[open] summary::before{transform:rotate(90deg)}
+.ctl{margin:7px 0 10px}
+.ctl .lab{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px}
+.ctl .lab label{font-size:12.5px; color:var(--c-ink2)}
+.ctl .lab output{font-size:12px; color:var(--c-ink); font-weight:600}
+.ctl input[type=range]{width:100%; accent-color:var(--c-accent); margin:2px 0 0}
+.ctl .hint{font-size:11px; color:var(--c-muted); margin-top:1px}
+.ctl.checkbox{display:flex; gap:8px; align-items:center}
+.ctl.checkbox input{accent-color:var(--c-accent)}
+.ctl.checkbox label{font-size:12.5px; color:var(--c-ink2)}
+.seedrow{display:flex; gap:8px; align-items:center}
+.seedrow input[type=range]{flex:1}
+
+/* viewport */
+#viewwrap{position:relative; background:var(--c-canvas); border-bottom:1px solid var(--c-grid); height:52vh; min-height:330px}
+#view3d{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab}
+#view3d.dragging{cursor:grabbing}
+.overlay{position:absolute; display:flex; gap:6px; z-index:5}
+.overlay.tl{top:10px; left:12px; flex-direction:column; align-items:flex-start}
+.overlay.tr{top:10px; right:12px}
+.overlay.bl{bottom:10px; left:12px; flex-direction:column; align-items:flex-start; gap:4px}
+.viewbtns{display:flex; gap:5px}
+.legend{
+  background:color-mix(in srgb, var(--c-surface) 88%, transparent); border:1px solid var(--c-grid);
+  border-radius:8px; padding:8px 10px; backdrop-filter:blur(4px);
+}
+.legend .lg-title{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--c-muted); font-weight:650; margin-bottom:5px}
+.lg-row{display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--c-ink2); padding:1px 0}
+.lg-row .sw{width:14px; height:14px; border-radius:3px; border:1px solid var(--c-hairline); flex:none}
+.lg-row .rng{margin-left:auto; padding-left:10px; color:var(--c-muted)}
+.hud{
+  background:color-mix(in srgb, var(--c-surface) 88%, transparent); border:1px solid var(--c-grid);
+  border-radius:8px; padding:5px 10px; font-size:11.5px; color:var(--c-ink2); backdrop-filter:blur(4px);
+}
+
+/* stats + plan strip */
+#stripe{display:flex; gap:14px; padding:12px 18px; align-items:stretch; flex-wrap:wrap; background:var(--c-page)}
+#planbox{flex:2 1 420px; min-width:300px; background:var(--c-surface); border:1px solid var(--c-grid); border-radius:10px; padding:10px 12px 6px}
+#statsbox{flex:1 1 260px; min-width:240px; display:flex; flex-direction:column; gap:8px}
+.boxtitle{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--c-muted); font-weight:650; margin-bottom:4px}
+.statgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px; flex:1}
+.stat{background:var(--c-surface); border:1px solid var(--c-grid); border-radius:10px; padding:8px 12px}
+.stat .v{font-size:19px; font-weight:650; letter-spacing:-.01em}
+.stat .k{font-size:11px; color:var(--c-muted)}
+.baychips{display:flex; gap:4px; margin-top:6px; flex-wrap:wrap}
+.baychip{display:flex; align-items:center; gap:5px; font-size:10.5px; color:var(--c-ink2); border:1px solid var(--c-grid); border-radius:5px; padding:2px 7px}
+.baychip .dot{width:9px; height:9px; border-radius:2px}
+.baychip.inphase{border-color:var(--c-accent); }
+
+/* tabs */
+#tabs{border-top:1px solid var(--c-grid); background:var(--c-surface)}
+.tabrow{display:flex; gap:2px; padding:0 18px; border-bottom:1px solid var(--c-grid); overflow-x:auto}
+.tab{
+  border:none; background:none; padding:11px 14px 9px; font-size:13px; font-weight:550; color:var(--c-ink2);
+  border-bottom:2px solid transparent; white-space:nowrap;
+}
+.tab:hover{color:var(--c-ink)}
+.tab.active{color:var(--c-ink); border-bottom-color:var(--c-accent)}
+.tabpane{display:none; padding:18px; max-width:1200px}
+.tabpane.active{display:block}
+
+/* tables */
+table.data{border-collapse:collapse; width:100%; font-size:12.5px; margin:8px 0 18px}
+table.data th{
+  text-align:left; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--c-muted);
+  font-weight:650; padding:6px 10px 5px; border-bottom:1px solid var(--c-baseline);
+}
+table.data td{padding:5px 10px; border-bottom:1px solid var(--c-grid); color:var(--c-ink2); vertical-align:top}
+table.data td.num, table.data td.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; color:var(--c-ink)}
+.tablewrap{overflow-x:auto}
+.ok{color:var(--c-good); font-weight:600}
+.warn{color:var(--c-accent-ink); font-weight:600}
+.pill{display:inline-block; font-size:10.5px; font-weight:650; border-radius:4px; padding:1px 7px; border:1px solid var(--c-grid); color:var(--c-ink2)}
+.pill.ridge{border-color:var(--ramp-2); color:var(--ramp-2)}
+.pill.valley{border-color:var(--c-accent); color:var(--c-accent-ink)}
+h2.sec{font-size:15px; font-weight:650; margin:20px 0 4px}
+h3.sub{font-size:13px; font-weight:650; margin:16px 0 2px}
+p.note{font-size:12.5px; color:var(--c-ink2); max-width:68ch; margin:4px 0}
+ul.notes{font-size:12.5px; color:var(--c-ink2); max-width:70ch; padding-left:20px}
+ul.notes li{margin:5px 0}
+.cardgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; margin:10px 0 20px}
+.panelcard{background:var(--c-page); border:1px solid var(--c-grid); border-radius:10px; padding:10px 12px}
+.panelcard h4{margin:0 0 4px; font-size:13px; display:flex; justify-content:space-between; align-items:center}
+.panelcard h4 .st{font-size:11px; font-weight:600; color:var(--c-ink2)}
+.panelcard svg{width:100%; height:auto; display:block}
+.mini{font-size:11px; color:var(--c-muted)}
+#inspector .insp-wrap{display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start}
+#inspector .insp-svg{flex:1 1 380px; min-width:300px; max-width:560px; background:var(--c-page); border:1px solid var(--c-grid); border-radius:10px; padding:12px}
+#inspector .insp-data{flex:1 1 320px; min-width:280px}
+.empty{color:var(--c-muted); font-size:13px; padding:20px 0}
+textarea#specbox{width:100%; height:150px; font-family:ui-monospace,Menlo,monospace; font-size:11px; background:var(--c-sunken); color:var(--c-ink); border:1px solid var(--c-grid); border-radius:8px; padding:8px}
+.sheethead{display:none}
+
+/* print: cut sheets only */
+@media print{
+  body{background:#fff}
+  header.bar, aside#panel, #viewwrap, #stripe, .tabrow, #inspector, #structure, #details, #materials, #volumes, #buildnotes{display:none !important}
+  #tabs{border:none}
+  .tabpane{display:none !important; padding:0; max-width:none}
+  .tabpane#cutsheets{display:block !important}
+  .sheethead{display:block; margin-bottom:14px}
+  .panelcard{break-inside:avoid; border:1px solid #999}
+  table.data{break-inside:auto}
+  table.data td, table.data th{border-color:#bbb; color:#000}
+  .btn{display:none}
+}
+
+@media (max-width: 900px){
+  .workspace{flex-direction:column}
+  aside#panel{width:100%; border-right:none; border-bottom:1px solid var(--c-grid); max-height:290px}
+  #viewwrap{height:46vh}
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header class="bar">
+    <div class="brand">
+      <span class="eyebrow">Parametric designer · rev A</span>
+      <h1>Garage Climbing Wall</h1>
+    </div>
+    <div class="bar-actions">
+      <a class="btn" href="https://github.com/jeffwoods/climbing-wall-designer" target="_blank" rel="noopener">GitHub</a>
+      <button class="btn" id="btnSpec">Copy spec JSON</button>
+      <button class="btn" id="btnReset">Reset defaults</button>
+      <button class="btn primary" id="btnPrint">Print cut sheets</button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside id="panel"></aside>
+
+    <main id="stage">
+      <div id="viewwrap">
+        <canvas id="view3d"></canvas>
+        <div class="overlay tl"><div class="legend" id="legend"></div></div>
+        <div class="overlay tr viewbtns">
+          <button class="btn small" data-view="iso">Iso</button>
+          <button class="btn small" data-view="front">Front</button>
+          <button class="btn small" data-view="plan">Plan</button>
+          <button class="btn small" data-view="back">Back corner</button>
+        </div>
+        <div class="overlay bl">
+          <div class="hud" id="hud">drag to orbit · scroll to zoom · click a facet to inspect</div>
+        </div>
+      </div>
+
+      <div id="stripe">
+        <div id="planbox">
+          <div class="boxtitle">Plan view — protrusion from existing wall</div>
+          <div id="plansvg"></div>
+          <div class="baychips" id="baychips"></div>
+        </div>
+        <div id="statsbox">
+          <div class="boxtitle">Totals <span id="statscope" style="letter-spacing:0;text-transform:none;font-weight:500"></span></div>
+          <div class="statgrid" id="stats"></div>
+        </div>
+      </div>
+
+      <div id="tabs">
+        <div class="tabrow" role="tablist">
+          <button class="tab active" data-tab="inspector">Facet inspector</button>
+          <button class="tab" data-tab="cutsheets">Cut sheets (phase)</button>
+          <button class="tab" data-tab="structure">Structure</button>
+          <button class="tab" data-tab="details">Joinery</button>
+          <button class="tab" data-tab="materials">Materials</button>
+          <button class="tab" data-tab="volumes">Volumes</button>
+          <button class="tab" data-tab="buildnotes">Build notes</button>
+        </div>
+        <div class="tabpane active" id="inspector"><div class="empty">Click any facet in the 3D view to see its unfolded dimensions, corner angles, and edge bevels.</div></div>
+        <div class="tabpane" id="cutsheets"></div>
+        <div class="tabpane" id="structure"></div>
+        <div class="tabpane" id="details"></div>
+        <div class="tabpane" id="materials"></div>
+        <div class="tabpane" id="volumes"></div>
+        <div class="tabpane" id="buildnotes"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+'use strict';
+(function(){
+/* =============== utilities =============== */
+const TAU=Math.PI*2, D2R=Math.PI/180, R2D=180/Math.PI;
+const clamp=(x,a,b)=>x<a?a:(x>b?b:x);
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=t=>t*t*(3-2*t);
+const V=(x,y,z)=>({x,y,z});
+const add=(a,b)=>V(a.x+b.x,a.y+b.y,a.z+b.z);
+const sub=(a,b)=>V(a.x-b.x,a.y-b.y,a.z-b.z);
+const scl=(a,s)=>V(a.x*s,a.y*s,a.z*s);
+const dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
+const crs=(a,b)=>V(a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x);
+const len=a=>Math.hypot(a.x,a.y,a.z);
+const nrm=a=>{const l=len(a)||1; return V(a.x/l,a.y/l,a.z/l)};
+const dist=(a,b)=>len(sub(a,b));
+function mulberry32(seed){let a=seed>>>0; return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function fmtIn(x, withDec){
+  const n=Math.round(x*16)/16;
+  const sign=n<0?'-':''; const ax=Math.abs(n);
+  const w=Math.floor(ax); let num=Math.round((ax-w)*16), den=16;
+  while(num%2===0&&num>0){num/=2;den/=2}
+  let s;
+  if(num===0) s=sign+w+'"';
+  else if(w===0) s=sign+num+'/'+den+'"';
+  else s=sign+w+' '+num+'/'+den+'"';
+  return withDec===false ? s : s;
+}
+function fmtFtIn(x){
+  const f=Math.floor(x/12), i=Math.round(x-f*12);
+  return i===0? f+"'" : f+"'"+i+'"';
+}
+const fmtDeg=x=>(Math.round(x*10)/10)+'°';
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function token(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function hexToRgb(h){ h=h.replace('#',''); if(h.length===3)h=h.split('').map(c=>c+c).join(''); const n=parseInt(h,16); return [n>>16&255,n>>8&255,n&255]; }
+function shadeHex(hex, f){ const [r,g,b]=hexToRgb(hex); return `rgb(${Math.round(r*f)},${Math.round(g*f)},${Math.round(b*f)})`; }
+function mixHex(h1,h2,t){ const a=hexToRgb(h1),b=hexToRgb(h2); return `rgb(${Math.round(lerp(a[0],b[0],t))},${Math.round(lerp(a[1],b[1],t))},${Math.round(lerp(a[2],b[2],t))})`; }
+
+/* =============== parameters =============== */
+const DEFAULTS={
+  flip:1, L:240, H:108, wrap:48, bay:48, rows:3,
+  doorLen:96, trans:72, capDoor:8, capBack:40,
+  thStart:-4, thEnd:16, ease:1.4,
+  jitD:2.5, jitY:7, seed:7,
+  phaseBays:2, tnut:8, inset:2.5, maxSpan:24,
+  showTnuts:0, showCar:1, dimPhase:1, showFrame:0,
+  vw:24, vd:24, vh:8, vtw:8, vtd:8, vsx:0, vsy:0, vtn:1
+};
+const MIN_D=4.5;               // minimum face standoff from existing wall (framing + bolt room)
+let P=Object.assign({},DEFAULTS);
+
+const CLASSES=[
+  {max:-3,   name:'Slab',            rng:'< −3°'},
+  {max: 4,   name:'Vertical',        rng:'−3° – 4°'},
+  {max: 9,   name:'Gentle overhang', rng:'4° – 9°'},
+  {max:15,   name:'Steep',           rng:'9° – 15°'},
+  {max:99,   name:'Cave',            rng:'> 15°'}
+];
+const classOf=t=>{ for(let i=0;i<CLASSES.length;i++) if(t<=CLASSES[i].max) return i; return CLASSES.length-1; };
+
+/* =============== model =============== */
+let M=null;   // built model
+let selId=-1; // selected facet
+
+function buildModel(){
+  const rng=mulberry32((P.seed*2654435761)>>>0 || 1);
+  const FLIP=!!P.flip;                      // mirrored layout: door end at x=L, back wall at x=0
+  const mx=x=>FLIP? P.L-x : x;
+  const nSide=Math.max(2,Math.round(P.L/P.bay));
+  const spacing=P.L/nSide;
+  const hasWrap=P.wrap>=12;
+  const sList=[]; for(let k=0;k<=nSide;k++) sList.push(k*spacing);
+  const nWrap=hasWrap? Math.max(1,Math.round(P.wrap/P.bay)) : 0;
+  if(hasWrap){ const wSp=P.wrap/nWrap; for(let k=1;k<=nWrap;k++) sList.push(P.L+k*wSp); }
+  const Lw=sList[sList.length-1];
+
+  const zoneT=s=>clamp((s-P.doorLen)/Math.max(1,Lw-P.doorLen),0,1);
+  const thetaAt=s=>P.thStart+(P.thEnd-P.thStart)*Math.pow(zoneT(s),P.ease);
+  const capAt=s=> s<=P.doorLen? P.capDoor : lerp(P.capDoor,P.capBack,smooth(clamp((s-P.doorLen)/P.trans,0,1)));
+  const jsAt=s=> smooth(clamp((s-P.doorLen)/P.trans,0,1));
+
+  // profiles
+  const profiles=sList.map((s,idx)=>{
+    const js=jsAt(s), c=capAt(s);
+    const ys=[0]; let prev=0;
+    for(let j=1;j<P.rows;j++){
+      const raw=P.H*j/P.rows+(rng()*2-1)*P.jitY*js;
+      const y=clamp(raw, prev+12, P.H-12*(P.rows-j));
+      ys.push(y); prev=y;
+    }
+    ys.push(P.H);
+    const maxTan=Math.max(0.005,(c-MIN_D))/P.H;
+    let th=clamp(thetaAt(s)*D2R, -Math.atan(maxTan), Math.atan(maxTan));
+    const ds=ys.map(y=>{
+      const base= th>=0? MIN_D+y*Math.tan(th) : MIN_D+(P.H-y)*Math.tan(-th);
+      return clamp(base+(rng()*2-1)*P.jitD*js, MIN_D, c);
+    });
+    const corner=hasWrap&&Math.abs(s-P.L)<1e-6;
+    const nodes=ys.map((y,j)=>{
+      const d=ds[j];
+      if(s<P.L-1e-6) return V(mx(s),y,d);
+      if(corner)      return V(mx(P.L-d),y,d);
+      if(!hasWrap && Math.abs(s-P.L)<1e-6) return V(mx(s),y,d);
+      return V(mx(P.L-d),y,s-P.L);
+    });
+    const wp=y=>{
+      if(s<P.L-1e-6) return V(mx(s),y,0);
+      if(corner) return V(mx(P.L),y,0);
+      if(!hasWrap && Math.abs(s-P.L)<1e-6) return V(mx(s),y,0);
+      return V(mx(P.L),y,s-P.L);
+    };
+    return {s,idx,ys,ds,nodes,js,cap:c,thetaDeg:th*R2D,corner,wallBase:wp(0),wallTop:wp(P.H)};
+  });
+
+  // vertices
+  const verts=[]; const vid=(i,j)=>i*(P.rows+1)+j;
+  profiles.forEach(p=>p.nodes.forEach(n=>verts.push(n)));
+
+  // facets
+  const facets=[];
+  function newell(ids){
+    let n=V(0,0,0);
+    for(let k=0;k<ids.length;k++){
+      const p=verts[ids[k]], q=verts[ids[(k+1)%ids.length]];
+      n.x+=(p.y-q.y)*(p.z+q.z); n.y+=(p.z-q.z)*(p.x+q.x); n.z+=(p.x-q.x)*(p.y+q.y);
+    }
+    return n;
+  }
+  function centroid(ids){ let c=V(0,0,0); ids.forEach(i=>c=add(c,verts[i])); return scl(c,1/ids.length); }
+  function pushFacet(ids,bay,row,half){
+    let nn=newell(ids);
+    const area=len(nn)/2;
+    if(area<1) return;
+    let n=nrm(nn);
+    const ctr=centroid(ids);
+    const dBack=FLIP? ctr.x : P.L-ctr.x;
+    const g=(ctr.z<=dBack)? V(0,0,1) : (FLIP? V(1,0,0):V(-1,0,0));
+    if(dot(n,g)<0){ ids=ids.slice().reverse(); n=scl(n,-1); }
+    const theta=Math.acos(clamp(n.y,-1,1))*R2D-90;
+    facets.push({id:facets.length, vids:ids, bay, row, half, n, ctr, theta, area, cls:classOf(theta)});
+  }
+  for(let i=0;i<profiles.length-1;i++){
+    for(let j=0;j<P.rows;j++){
+      const a=vid(i,j), b=vid(i,j+1), c=vid(i+1,j+1), d=vid(i+1,j);
+      const quad=[a,d,c,b];
+      // planarity check
+      const nn=nrm(newell(quad)); const ctr=centroid(quad);
+      let maxDev=0; quad.forEach(q=>{ maxDev=Math.max(maxDev,Math.abs(dot(sub(verts[q],ctr),nn))); });
+      const r=rng();
+      if(maxDev<0.2){ pushFacet(quad,i,j,''); }
+      else if(r<0.5){ pushFacet([a,d,c],i,j,'a'); pushFacet([a,c,b],i,j,'b'); }
+      else          { pushFacet([d,c,b],i,j,'a'); pushFacet([d,b,a],i,j,'b'); }
+    }
+  }
+  facets.forEach(f=>{
+    f.label='B'+(f.bay+1)+'-R'+(f.row+1)+(f.half||'');
+  });
+
+  // edges
+  const edges=new Map();
+  facets.forEach(f=>{
+    const ids=f.vids;
+    for(let k=0;k<ids.length;k++){
+      const a=ids[k], b=ids[(k+1)%ids.length];
+      const key=Math.min(a,b)+'_'+Math.max(a,b);
+      if(!edges.has(key)) edges.set(key,{key, va:Math.min(a,b), vb:Math.max(a,b), fids:[]});
+      edges.get(key).fids.push(f.id);
+    }
+  });
+  const rowsN=P.rows+1;
+  edges.forEach(e=>{
+    const A=verts[e.va], B=verts[e.vb];
+    e.len=dist(A,B);
+    const ia=Math.floor(e.va/rowsN), ib=Math.floor(e.vb/rowsN);
+    const ja=e.va%rowsN, jb=e.vb%rowsN;
+    if(A.y<0.01&&B.y<0.01) e.type='floor';
+    else if(A.y>P.H-0.01&&B.y>P.H-0.01) e.type='top';
+    else if(ia===0&&ib===0) e.type='door-end';
+    else if(ia===profiles.length-1&&ib===profiles.length-1) e.type='far-end';
+    else if(e.fids.length===2) e.type = (ia===ib)? (Math.abs(ja-jb)===1?'seam':'seam') : 'seam';
+    else e.type='seam';
+    if(e.fids.length===2){
+      const fA=facets[e.fids[0]], fB=facets[e.fids[1]];
+      const g=clamp(dot(fA.n,fB.n),-1,1);
+      e.gamma=Math.acos(g)*R2D;
+      if(e.gamma<0.75){ e.joint='flat'; e.gamma=0; }
+      else{
+        const t=dot(sub(fB.ctr,fA.ctr),fA.n);
+        e.joint = t<0 ? 'ridge' : 'valley';
+      }
+      e.vertical = (ia!==ib) && (ja===jb) ? false : (ia!==ib?false:true);
+      e.atRib = (ja===jb) && (ia!==ib) ? false : (ia===ib);
+    }
+  });
+  // rib edges = edges between rows on same profile (ia===ib) shared by two bays' facets
+  // horizontal/diagonal seams get backers.
+
+  // plates (floor + top polylines)
+  function plate(jRow){
+    const pts=profiles.map(p=>p.nodes[jRow]);
+    const segs=[];
+    for(let i=0;i<pts.length-1;i++){
+      segs.push({i, len:dist(pts[i],pts[i+1]), a:pts[i], b:pts[i+1]});
+    }
+    // plan miters at interior joints
+    const miters=[0];
+    for(let i=1;i<pts.length-1;i++){
+      const u=nrm(sub(pts[i],pts[i-1])), v=nrm(sub(pts[i+1],pts[i]));
+      const turn=Math.acos(clamp(u.x*v.x+u.z*v.z,-1,1))*R2D;
+      miters.push(turn/2);
+    }
+    miters.push(0);
+    return {segs,miters,pts};
+  }
+
+  const model={
+    profiles, verts, facets, edges:[...edges.values()],
+    nSide, spacing, hasWrap, Lw,
+    floorPlate:plate(0), topPlate:plate(P.rows),
+    capAt, thetaAt
+  };
+  // stats
+  const phaseSet=f=>f.bay<P.phaseBays;
+  const st={ areaAll:0, areaPh:0, tnAll:0, tnPh:0, maxD:0, maxTh:-99, minTh:99, nAll:facets.length, nPh:0 };
+  facets.forEach(f=>{
+    const u=unfold(model,f);
+    f.unf=u;
+    f.tnuts=tnutLayout(u);
+    f.stiff=stiffenerLayout(u);
+    st.areaAll+=f.area; st.tnAll+=f.tnuts.length;
+    st.maxTh=Math.max(st.maxTh,f.theta); st.minTh=Math.min(st.minTh,f.theta);
+    if(phaseSet(f)){ st.areaPh+=f.area; st.tnPh+=f.tnuts.length; st.nPh++; }
+  });
+  verts.forEach(v=>{ const d=Math.min(v.z, P.L-v.x); st.maxD=Math.max(st.maxD, Math.min(v.z,P.L-v.x)); });
+  // protrusion = min distance to nearer wall
+  st.maxD=0; verts.forEach(v=>{ st.maxD=Math.max(st.maxD, Math.min(v.z, P.L - v.x)); });
+  model.stats=st;
+  return model;
+}
+
+/* ---- unfold facet to 2D ---- */
+function unfold(model,f){
+  const vs=f.vids.map(i=>model.verts[i]);
+  // longest edge as u axis
+  let bi=0,bl=0;
+  for(let k=0;k<vs.length;k++){
+    const l=dist(vs[k],vs[(k+1)%vs.length]);
+    if(l>bl){bl=l;bi=k}
+  }
+  const o=vs[bi];
+  const u=nrm(sub(vs[(bi+1)%vs.length],o));
+  const w=nrm(crs(f.n,u));
+  let pts=vs.map(p=>({x:dot(sub(p,o),u), y:dot(sub(p,o),w)}));
+  // ensure CCW in screen-ish coords (y up here)
+  let s2=0; for(let k=0;k<pts.length;k++){ const p=pts[k],q=pts[(k+1)%pts.length]; s2+=(p.x*q.y-q.x*p.y); }
+  let order=f.vids.slice();
+  if(s2<0){ pts=pts.slice().reverse(); order=order.slice().reverse(); }
+  // normalize: min corner to 0
+  const minx=Math.min(...pts.map(p=>p.x)), miny=Math.min(...pts.map(p=>p.y));
+  pts=pts.map(p=>({x:p.x-minx, y:p.y-miny}));
+  const maxx=Math.max(...pts.map(p=>p.x)), maxy=Math.max(...pts.map(p=>p.y));
+  // sides + angles
+  const sides=[],angles=[];
+  for(let k=0;k<pts.length;k++){
+    const p=pts[k],q=pts[(k+1)%pts.length];
+    sides.push(Math.hypot(q.x-p.x,q.y-p.y));
+    const r=pts[(k-1+pts.length)%pts.length];
+    const v1={x:r.x-p.x,y:r.y-p.y}, v2={x:q.x-p.x,y:q.y-p.y};
+    const a=Math.acos(clamp((v1.x*v2.x+v1.y*v2.y)/((Math.hypot(v1.x,v1.y)||1)*(Math.hypot(v2.x,v2.y)||1)),-1,1))*R2D;
+    angles.push(a);
+  }
+  const fits=(maxx<=96.6&&maxy<=48.6)||(maxx<=48.6&&maxy<=96.6);
+  return {pts, order, sides, angles, w:maxx, h:maxy, fits};
+}
+
+/* ---- t-nut layout on unfolded facet ---- */
+function tnutLayout(u){
+  const out=[]; const s=P.tnut, inset=P.inset;
+  if(u.w<inset*2||u.h<inset*2) return out;
+  const pip=(x,y)=>{ // point in polygon
+    let inside=false; const pts=u.pts;
+    for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+      const xi=pts[i].x, yi=pts[i].y, xj=pts[j].x, yj=pts[j].y;
+      if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+    }
+    return inside;
+  };
+  const edgeDist=(x,y)=>{
+    let m=1e9; const pts=u.pts;
+    for(let i=0;i<pts.length;i++){
+      const a=pts[i], b=pts[(i+1)%pts.length];
+      const dx=b.x-a.x, dy=b.y-a.y, l2=dx*dx+dy*dy||1;
+      let t=clamp(((x-a.x)*dx+(y-a.y)*dy)/l2,0,1);
+      m=Math.min(m,Math.hypot(x-(a.x+dx*t), y-(a.y+dy*t)));
+    }
+    return m;
+  };
+  let row=0;
+  for(let y=inset+ (u.h%s)/2 ;y<=u.h-inset+0.01;y+=s){
+    const off=(row%2===1)? s/2:0;
+    for(let x=inset+off+(u.w%s)/2 ;x<=u.w-inset+0.01;x+=s){
+      if(pip(x,y)&&edgeDist(x,y)>=inset-0.01) out.push({x,y});
+    }
+    row++;
+  }
+  return out;
+}
+
+/* ---- back stiffeners: only where the panel's unsupported span demands them ----
+   Governing span = 2 × the largest inscribed distance from an interior point to
+   the nearest (edge-supported) boundary. Panels under P.maxSpan need nothing. */
+function stiffenerLayout(u){
+  const S=P.maxSpan;
+  const pts=u.pts;
+  const pip=(x,y)=>{
+    let inside=false;
+    for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+      const xi=pts[i].x, yi=pts[i].y, xj=pts[j].x, yj=pts[j].y;
+      if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+    }
+    return inside;
+  };
+  const edgeDist=(x,y)=>{
+    let m=1e9;
+    for(let i=0;i<pts.length;i++){
+      const a=pts[i], b=pts[(i+1)%pts.length];
+      const dx=b.x-a.x, dy=b.y-a.y, l2=dx*dx+dy*dy||1;
+      const t=clamp(((x-a.x)*dx+(y-a.y)*dy)/l2,0,1);
+      m=Math.min(m,Math.hypot(x-(a.x+dx*t), y-(a.y+dy*t)));
+    }
+    return m;
+  };
+  let rmax=0;
+  for(let y=1;y<u.h;y+=2) for(let x=1;x<u.w;x+=2){
+    if(pip(x,y)){ const d=edgeDist(x,y); if(d>rmax) rmax=d; }
+  }
+  const span=2*rmax;
+  if(span<=S+0.01) return [];
+  const n=Math.ceil(span/S)-1;
+  const horiz=u.w>=u.h;
+  const out=[];
+  for(let k=1;k<=n;k++){
+    const t=k/(n+1);
+    const cuts=[];
+    for(let i=0;i<pts.length;i++){
+      const a=pts[i], b=pts[(i+1)%pts.length];
+      if(horiz){ const y=u.h*t; if((a.y>y)!==(b.y>y)) cuts.push(a.x+(b.x-a.x)*(y-a.y)/(b.y-a.y)); }
+      else     { const x=u.w*t; if((a.x>x)!==(b.x>x)) cuts.push(a.y+(b.y-a.y)*(x-a.x)/(b.x-a.x)); }
+    }
+    if(cuts.length>=2){
+      const lo=Math.min(...cuts), hi=Math.max(...cuts);
+      if(hi-lo>8) out.push({horiz, pos:horiz? u.h*t : u.w*t, a:lo, b:hi, len:hi-lo});
+    }
+  }
+  return out;
+}
+
+/* =============== 3D view =============== */
+const cvs=document.getElementById('view3d');
+const ctx=cvs.getContext('2d');
+const cam={yaw:-0.62, pitch:0.18, dist:0, tx:0, ty:0, tz:0, fov:36};
+function resetCam(kind){
+  const Lw=M?M.Lw:P.L+P.wrap;
+  cam.tx=P.L*0.46; cam.ty=P.H*0.42; cam.tz=Math.min(28,P.capBack*0.5);
+  const fit=Math.max(Lw, P.H*2.1)*1.35;
+  if(kind==='front'){ cam.yaw=0.02; cam.pitch=0.06; cam.dist=fit; }
+  else if(kind==='plan'){ cam.yaw=-0.15; cam.pitch=1.33; cam.dist=fit*0.95; }
+  else if(kind==='back'){ cam.yaw=-1.05; cam.pitch=0.22; cam.dist=fit*0.8; }
+  else { cam.yaw=-0.62; cam.pitch=0.18; cam.dist=fit*0.92; }
+  if(P.flip) cam.yaw=-cam.yaw;
+}
+function camBasis(){
+  const cp=Math.cos(cam.pitch), sp=Math.sin(cam.pitch);
+  const cy=Math.cos(cam.yaw), sy=Math.sin(cam.yaw);
+  const eyeDir=V(cp*sy, sp, cp*cy);
+  const target=V(cam.tx,cam.ty,cam.tz);
+  const eye=add(target, scl(eyeDir,cam.dist));
+  const f=nrm(sub(target,eye));
+  let r=nrm(crs(f,V(0,1,0)));
+  if(!isFinite(r.x)||len(r)<0.01) r=V(1,0,0);
+  const u=crs(r,f);
+  return {eye,f,r,u};
+}
+function projFactory(){
+  const {eye,f,r,u}=camBasis();
+  const w=cvs.width, h=cvs.height;
+  const fpx=(h/2)/Math.tan(cam.fov*D2R/2);
+  return p=>{
+    const q=sub(p,eye);
+    const z=dot(q,f);
+    if(z<6) return null;
+    const s=fpx/z;
+    return {x:w/2+dot(q,r)*s, y:h/2-dot(q,u)*s, z};
+  };
+}
+function render(){
+  if(!M) return;
+  const w=cvs.clientWidth, h=cvs.clientHeight;
+  const dpr=window.devicePixelRatio||1;
+  if(cvs.width!==Math.round(w*dpr)||cvs.height!==Math.round(h*dpr)){ cvs.width=Math.round(w*dpr); cvs.height=Math.round(h*dpr); }
+  const proj=projFactory();
+  const C={
+    bg:token('--c-canvas'), grid:token('--c-floorgrid'), wall:token('--c-wallfaint'),
+    ink:token('--c-ink'), muted:token('--c-muted'), accent:token('--c-accent'),
+    sel:token('--sel'), baseline:token('--c-baseline'),
+    ramp:[token('--ramp-0'),token('--ramp-1'),token('--ramp-2'),token('--ramp-3'),token('--ramp-4')],
+    facetline:token('--facetline'), dwgPly:token('--dwg-ply'), dwgLum:token('--dwg-lumber'), frameLum:token('--frame-lumber')
+  };
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,cvs.width,cvs.height);
+  const light=nrm(V(0.35,0.8,0.55));
+
+  function line3(a,b,style,lw,dash){
+    const pa=proj(a), pb=proj(b);
+    if(!pa||!pb) return;
+    ctx.strokeStyle=style; ctx.lineWidth=lw||1;
+    ctx.setLineDash(dash||[]);
+    ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  function poly3(pts, fill, stroke, lw){
+    const pp=pts.map(proj); if(pp.some(p=>!p)) return null;
+    ctx.beginPath(); ctx.moveTo(pp[0].x,pp[0].y);
+    for(let i=1;i<pp.length;i++) ctx.lineTo(pp[i].x,pp[i].y);
+    ctx.closePath();
+    if(fill){ctx.fillStyle=fill; ctx.fill();}
+    if(stroke){ctx.strokeStyle=stroke; ctx.lineWidth=lw||1; ctx.stroke();}
+    return pp;
+  }
+
+  // existing walls (faint)
+  poly3([V(-6,0,0),V(P.L+6,0,0),V(P.L+6,P.H+6,0),V(-6,P.H+6,0)].map(p=>V(p.x,p.y,-0.3)), C.wall, null);
+  if(M.hasWrap){
+    const bx=P.flip? -0.3 : P.L+0.3;
+    poly3([V(bx,0,0),V(bx,0,P.wrap+30),V(bx,P.H+6,P.wrap+30),V(bx,P.H+6,0)], C.wall, null);
+  }
+
+  // floor grid
+  const gz=Math.max(60, P.capBack+30, P.wrap+24);
+  for(let x=-6;x<=P.L+6;x+=24) line3(V(x,0,0),V(x,0,gz),C.grid,1);
+  for(let z=0;z<=gz;z+=24) line3(V(-6,0,z),V(P.L+6,0,z),C.grid,1);
+
+  // phase divider on floor
+  const px=M.spacing*P.phaseBays;
+  if(px<P.L-1){
+    const pxp=P.flip? P.L-px : px;
+    line3(V(pxp,0,0),V(pxp,0,Math.max(40,P.capBack+12)),C.accent,1.6,[6,5]);
+  }
+
+  // facets back-to-front
+  const {eye}=camBasis();
+  const order=M.facets.map(f=>({f, d:dist(f.ctr,eye)})).sort((a,b)=>b.d-a.d);
+  const screenPolys=[];
+  const FR=!!P.showFrame;
+  order.forEach(({f})=>{
+    const pts=f.vids.map(i=>M.verts[i]);
+    let pp;
+    if(FR){
+      pp=poly3(pts, null, C.facetline||'rgba(0,0,0,0.28)', 1);
+    } else {
+      const lam=Math.max(0,dot(f.n,light));
+      const shade=0.8+0.2*lam;
+      let fill=shadeHex(C.ramp[f.cls],shade);
+      const inPhase=f.bay<P.phaseBays;
+      if(P.dimPhase && !inPhase){ fill=mixHex(C.ramp[f.cls], C.bg.startsWith('#')?C.bg:'#888888', 0.55); }
+      const stroke=C.facetline||'rgba(0,0,0,0.28)';
+      pp=poly3(pts, fill, stroke, 1);
+    }
+    if(pp) screenPolys.push({f,pp});
+    if(pp && f.id===selId){
+      ctx.strokeStyle=C.sel; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(pp[0].x,pp[0].y);
+      for(let i=1;i<pp.length;i++) ctx.lineTo(pp[i].x,pp[i].y);
+      ctx.closePath(); ctx.stroke();
+    }
+    if(!FR && P.showTnuts && pp && dot(f.n, nrm(sub(eye,f.ctr)))>0.15){
+      // reproject t-nuts via unfold basis
+      const vs=f.vids.map(i=>M.verts[i]);
+      let bi=0,bl=0;
+      for(let k=0;k<vs.length;k++){const l=dist(vs[k],vs[(k+1)%vs.length]); if(l>bl){bl=l;bi=k}}
+      const o=vs[bi], u=nrm(sub(vs[(bi+1)%vs.length],o)), wv=nrm(crs(f.n,u));
+      // recompute the same offsets used in unfold()
+      const raw=vs.map(p=>({x:dot(sub(p,o),u), y:dot(sub(p,o),wv)}));
+      const minx=Math.min(...raw.map(p=>p.x)), miny=Math.min(...raw.map(p=>p.y));
+      ctx.fillStyle='rgba(0,0,0,0.42)';
+      f.tnuts.forEach(t=>{
+        // undo unfold normalization (note: unfold may have reversed pts but coords unchanged)
+        const p3=add(add(o, scl(u,t.x+minx)), scl(wv,t.y+miny));
+        const pp2=proj(p3);
+        if(pp2){ ctx.beginPath(); ctx.arc(pp2.x,pp2.y,Math.max(1,140/pp2.z*1.2),0,TAU); ctx.fill(); }
+      });
+    }
+  });
+
+  // framing skeleton — primary lumber as solid boxes, infill as lines
+  if(FR){
+    const items=[]; // {kind:'poly'|'box', ...}
+    function pushBox(a,b,u1,u2,w1,w2){
+      const h1=scl(u1,w1/2), h2=scl(u2,w2/2);
+      const cs=[sub(sub(a,h1),h2),sub(add(a,h1),h2),add(add(a,h1),h2),add(sub(a,h1),h2),
+                sub(sub(b,h1),h2),sub(add(b,h1),h2),add(add(b,h1),h2),add(sub(b,h1),h2)];
+      const ctr=scl(cs.reduce((s2,p)=>add(s2,p),V(0,0,0)),1/8);
+      items.push({kind:'box', cs, ctr, d:dist(ctr,eye)});
+    }
+    const UP=V(0,1,0);
+    M.profiles.forEach(pr=>{
+      let out=sub(pr.nodes[0],pr.wallBase); out=V(out.x,0,out.z);
+      out=(len(out)<0.5)? V(0,0,1) : nrm(out);
+      pr._out=out; pr._nrb=nrm(crs(out,UP));
+    });
+    // rib webs as translucent planes
+    M.profiles.forEach(pr=>{
+      const pts=[pr.wallBase,...pr.nodes,pr.wallTop];
+      let c2=V(0,0,0); pts.forEach(p=>c2=add(c2,p)); c2=scl(c2,1/pts.length);
+      items.push({kind:'poly', pts, ctr:c2, d:dist(c2,eye)});
+    });
+    // chords — landing ON the sleeper (start 1.5" up), no interpenetration
+    M.profiles.forEach(pr=>{
+      pushBox(add(add(pr.wallBase,scl(pr._out,0.75)),V(0,1.5,0)), add(pr.wallTop,scl(pr._out,0.75)), pr._out, pr._nrb, 1.5, 3.5);
+    });
+    // sleeper + floor face plate + top plate, per bay segment
+    for(let i=0;i<M.profiles.length-1;i++){
+      const pa=M.profiles[i], pb=M.profiles[i+1];
+      const out=nrm(add(pa._out,pb._out));
+      pushBox(add(add(pa.wallBase,scl(out,1.75)),V(0,0.75,0)), add(add(pb.wallBase,scl(out,1.75)),V(0,0.75,0)), UP, out, 1.5, 3.5);
+      pushBox(add(sub(M.floorPlate.pts[i],scl(out,1.75)),V(0,0.75,0)), add(sub(M.floorPlate.pts[i+1],scl(out,1.75)),V(0,0.75,0)), UP, out, 1.5, 3.5);
+      pushBox(add(sub(M.topPlate.pts[i],scl(out,1.75)),V(0,-0.75,0)), add(sub(M.topPlate.pts[i+1],scl(out,1.75)),V(0,-0.75,0)), UP, out, 1.5, 3.5);
+    }
+    // draw planes + boxes back-to-front; convex boxes need only backface culling internally
+    items.sort((x,y)=>y.d-x.d);
+    const BOXF=[[0,1,2,3],[4,7,6,5],[0,4,5,1],[1,5,6,2],[2,6,7,3],[3,7,4,0]];
+    items.forEach(it=>{
+      if(it.kind==='poly'){
+        ctx.globalAlpha=0.5;
+        poly3(it.pts, C.dwgPly, C.facetline, 1);
+        ctx.globalAlpha=1;
+      } else {
+        BOXF.forEach(q=>{
+          const pts=q.map(i=>it.cs[i]);
+          const n=nrm(crs(sub(pts[1],pts[0]),sub(pts[2],pts[0])));
+          let c2=V(0,0,0); pts.forEach(p=>c2=add(c2,p)); c2=scl(c2,0.25);
+          if(dot(n,sub(eye,c2))<0) return;
+          const lam=Math.abs(dot(n,light));
+          poly3(pts, shadeHex(C.dwgLum,0.62+0.38*lam), 'rgba(0,0,0,0.3)', 0.7);
+        });
+      }
+    });
+    // infill linework: seam spines (held back 2"), scab pairs, stiffeners
+    M.edges.forEach(e=>{
+      if(e.type!=='seam') return;
+      let a=M.verts[e.va], b=M.verts[e.vb];
+      const dir=nrm(sub(b,a));
+      if(e.len>10){ a=add(a,scl(dir,2)); b=sub(b,scl(dir,2)); }
+      line3(a,b,C.frameLum,2.5);
+    });
+    M.profiles.forEach(pr=>{
+      for(let j=0;j<pr.nodes.length-1;j++){
+        [-1.125,1.125].forEach(off=>{
+          line3(add(pr.nodes[j],scl(pr._nrb,off)), add(pr.nodes[j+1],scl(pr._nrb,off)), C.frameLum, 1.6);
+        });
+      }
+    });
+    M.facets.forEach(f=>{
+      if(!f.stiff||!f.stiff.length) return;
+      const vs=f.vids.map(i=>M.verts[i]);
+      let bi=0,bl=0;
+      for(let k=0;k<vs.length;k++){const l=dist(vs[k],vs[(k+1)%vs.length]); if(l>bl){bl=l;bi=k}}
+      const o=vs[bi], u=nrm(sub(vs[(bi+1)%vs.length],o)), wv=nrm(crs(f.n,u));
+      const raw=vs.map(p=>({x:dot(sub(p,o),u), y:dot(sub(p,o),wv)}));
+      const minx=Math.min(...raw.map(p=>p.x)), miny=Math.min(...raw.map(p=>p.y));
+      const m2=(x,y)=>add(add(o,scl(u,x+minx)),scl(wv,y+miny));
+      f.stiff.forEach(st=>{
+        const p1=st.horiz? m2(st.a,st.pos):m2(st.pos,st.a);
+        const p2=st.horiz? m2(st.b,st.pos):m2(st.pos,st.b);
+        line3(p1,p2,C.frameLum,2,[6,5]);
+      });
+    });
+    // re-stroke the ghost skins on top — they sit in front of the framing
+    order.forEach(({f})=>{ poly3(f.vids.map(i=>M.verts[i]), null, C.facetline, 1); });
+    if(selId>=0 && M.facets[selId]){
+      poly3(M.facets[selId].vids.map(i=>M.verts[i]), null, C.sel, 2.5);
+    }
+  }
+
+  // vehicle envelope
+  if(P.showCar){
+    const s0=Math.min(24,P.L*0.1), clen=Math.min(190,P.L-48), cw=70, ch=56;
+    const cx0=P.flip? P.L-s0-clen : s0;
+    const z0=P.capDoor+6;
+    const c=[V(cx0,0,z0),V(cx0+clen,0,z0),V(cx0+clen,0,z0+cw),V(cx0,0,z0+cw)];
+    const t=c.map(p=>V(p.x,ch,p.z));
+    ctx.setLineDash([5,5]);
+    for(let i=0;i<4;i++){
+      line3(c[i],c[(i+1)%4],C.baseline,1.2,[5,5]);
+      line3(t[i],t[(i+1)%4],C.baseline,1.2,[5,5]);
+      line3(c[i],t[i],C.baseline,1.2,[5,5]);
+    }
+    ctx.setLineDash([]);
+    const lp=proj(V(cx0+clen/2,ch+4,z0+cw/2));
+    if(lp){ ctx.fillStyle=C.muted; ctx.font=`${11*(window.devicePixelRatio||1)}px system-ui`; ctx.textAlign='center'; ctx.fillText('vehicle',lp.x,lp.y); }
+  }
+
+  // bay labels along floor
+  ctx.fillStyle=C.muted; ctx.font=`${10.5*(window.devicePixelRatio||1)}px ui-monospace,Menlo,monospace`; ctx.textAlign='center';
+  for(let i=0;i<M.profiles.length-1;i++){
+    const a=M.profiles[i].nodes[0], b=M.profiles[i+1].nodes[0];
+    const mid=scl(add(a,b),0.5);
+    const pp=proj(V(mid.x,-3,mid.z+6));
+    if(pp&&pp.z<cam.dist*2.2) ctx.fillText('B'+(i+1),pp.x,pp.y);
+  }
+
+  M.screenPolys=screenPolys;
+}
+
+/* picking */
+function pick(mx,my){
+  if(!M||!M.screenPolys) return -1;
+  const dpr=window.devicePixelRatio||1;
+  const x=mx*dpr,y=my*dpr;
+  for(let i=M.screenPolys.length-1;i>=0;i--){
+    const {f,pp}=M.screenPolys[i];
+    let inside=false;
+    for(let a=0,b=pp.length-1;a<pp.length;b=a++){
+      if(((pp[a].y>y)!==(pp[b].y>y)) && (x < (pp[b].x-pp[a].x)*(y-pp[a].y)/(pp[b].y-pp[a].y)+pp[a].x)) inside=!inside;
+    }
+    if(inside) return f.id;
+  }
+  return -1;
+}
+
+/* interaction */
+let drag=null, moved=false;
+cvs.addEventListener('pointerdown',e=>{ drag={x:e.clientX,y:e.clientY}; moved=false; cvs.classList.add('dragging'); cvs.setPointerCapture(e.pointerId); });
+cvs.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+  if(Math.abs(dx)+Math.abs(dy)>3) moved=true;
+  cam.yaw-=dx*0.0075; cam.pitch=clamp(cam.pitch+dy*0.0075,-0.08,1.45);
+  drag={x:e.clientX,y:e.clientY};
+  requestAnimationFrame(render);
+});
+cvs.addEventListener('pointerup',e=>{
+  cvs.classList.remove('dragging');
+  if(drag&&!moved){
+    const r=cvs.getBoundingClientRect();
+    const id=pick(e.clientX-r.left,e.clientY-r.top);
+    if(id>=0){ selId=id; showTab('inspector'); refreshInspector(); render(); }
+  }
+  drag=null;
+});
+cvs.addEventListener('wheel',e=>{
+  e.preventDefault();
+  cam.dist=clamp(cam.dist*(e.deltaY>0?1.08:0.93), 120, 2600);
+  requestAnimationFrame(render);
+},{passive:false});
+document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{ resetCam(b.dataset.view); render(); }));
+
+/* =============== SVG builders =============== */
+function facetSVG(f, opts){
+  opts=opts||{};
+  const u=f.unf;
+  const pad=44;
+  const scale=Math.min( (opts.maxW||420)/(u.w+0.001), (opts.maxH||300)/(u.h+0.001), 8 );
+  const W=u.w*scale+pad*2, H=u.h*scale+pad*2;
+  const X=x=>pad+x*scale, Y=y=>pad+(u.h-y)*scale;
+  let s=`<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Panel ${esc(f.label)} dimensions">`;
+  const ptsAttr=u.pts.map(p=>`${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join(' ');
+  s+=`<polygon points="${ptsAttr}" fill="var(--ramp-${f.cls})" fill-opacity="0.18" stroke="var(--c-ink)" stroke-width="1.4"/>`;
+  // diagonal for quads
+  if(u.pts.length===4){
+    const d=Math.hypot(u.pts[2].x-u.pts[0].x,u.pts[2].y-u.pts[0].y);
+    s+=`<line x1="${X(u.pts[0].x)}" y1="${Y(u.pts[0].y)}" x2="${X(u.pts[2].x)}" y2="${Y(u.pts[2].y)}" stroke="var(--c-muted)" stroke-dasharray="4 4" stroke-width="1"/>`;
+    const mx=X((u.pts[0].x+u.pts[2].x)/2), my=Y((u.pts[0].y+u.pts[2].y)/2);
+    s+=`<text x="${mx}" y="${my-4}" font-size="10" fill="var(--c-muted)" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">diag ${fmtIn(d)}</text>`;
+  }
+  // centroid for label offsets
+  const cx=u.pts.reduce((a,p)=>a+p.x,0)/u.pts.length, cy0=u.pts.reduce((a,p)=>a+p.y,0)/u.pts.length;
+  // edge labels
+  const einfo=opts.edgeInfo||[];
+  for(let k=0;k<u.pts.length;k++){
+    const p=u.pts[k], q=u.pts[(k+1)%u.pts.length];
+    const mx=(p.x+q.x)/2, my=(p.y+q.y)/2;
+    let nx=my-cy0, ny=-(mx-cx); // placeholder; we want outward normal
+    // outward normal in unfold coords: rotate edge dir by -90 (CCW polygon => outward is right side)
+    const ex=q.x-p.x, ey=q.y-p.y, el=Math.hypot(ex,ey)||1;
+    let ox=ey/el, oy=-ex/el;
+    // ensure it points away from centroid
+    if((mx+ox-cx)**2+(my+oy-cy0)**2 < (mx-cx)**2+(my-cy0)**2){ ox=-ox; oy=-oy; }
+    const lx=X(mx+ox*(14/scale)), ly=Y(my+oy*(14/scale));
+    let ang=Math.atan2(-(Y(q.y)-Y(p.y)), X(q.x)-X(p.x))*R2D; // screen angle
+    let rot=-ang;
+    if(rot>90)rot-=180; if(rot<-90)rot+=180;
+    const info=einfo[k];
+    const l1=String.fromCharCode(65+k)+': '+fmtIn(u.sides[k]);
+    const l2=info? info : '';
+    s+=`<g transform="translate(${lx.toFixed(1)},${ly.toFixed(1)}) rotate(${rot.toFixed(1)})">`;
+    s+=`<text x="0" y="0" font-size="11" font-weight="600" fill="var(--c-ink)" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">${esc(l1)}</text>`;
+    if(l2) s+=`<text x="0" y="11" font-size="9.5" fill="var(--c-ink2)" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">${esc(l2)}</text>`;
+    s+=`</g>`;
+  }
+  // corner angles
+  for(let k=0;k<u.pts.length;k++){
+    const p=u.pts[k];
+    const ix=p.x+(cx-p.x)*0.24, iy=p.y+(cy0-p.y)*0.24;
+    s+=`<text x="${X(ix).toFixed(1)}" y="${Y(iy).toFixed(1)}" font-size="9.5" fill="var(--c-muted)" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">${fmtDeg(u.angles[k])}</text>`;
+  }
+  // back stiffeners (dashed accent lines)
+  (f.stiff||[]).forEach(st=>{
+    const x1=st.horiz? X(st.a):X(st.pos), y1=st.horiz? Y(st.pos):Y(st.a);
+    const x2=st.horiz? X(st.b):X(st.pos), y2=st.horiz? Y(st.pos):Y(st.b);
+    s+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="var(--c-accent)" stroke-width="2" stroke-dasharray="7 5" stroke-opacity="0.75"/>`;
+    const lx=(x1+x2)/2, ly=(y1+y2)/2;
+    s+=`<text x="${lx.toFixed(1)}" y="${(ly-5).toFixed(1)}" font-size="9.5" fill="var(--c-accent-ink)" text-anchor="middle" font-family="ui-monospace,Menlo,monospace"${st.horiz?'':` transform="rotate(-90 ${lx.toFixed(1)} ${ly.toFixed(1)})"`}>stiffener ${fmtIn(st.len)}</text>`;
+  });
+  // t-nuts
+  if(opts.tnuts!==false){
+    f.tnuts.forEach(t=>{ s+=`<circle cx="${X(t.x).toFixed(1)}" cy="${Y(t.y).toFixed(1)}" r="2.1" fill="var(--c-ink2)" fill-opacity="0.55"/>`; });
+  }
+  s+='</svg>';
+  return s;
+}
+
+function ribSVG(pr){
+  const maxD=Math.max(...pr.ds)+2;
+  const scale=Math.min(120/maxD, 190/P.H);
+  const pad=34;
+  const W=maxD*scale+pad*2, H=P.H*scale+pad*1.6;
+  const X=d=>pad+d*scale, Y=y=>pad*0.8+(P.H-y)*scale;
+  let pts=[[0,0]];
+  for(let j=0;j<pr.ys.length;j++) pts.push([pr.ds[j],pr.ys[j]]);
+  pts.push([0,P.H]);
+  const attr=pts.map(p=>`${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ');
+  let s=`<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" xmlns="http://www.w3.org/2000/svg">`;
+  s+=`<polygon points="${attr}" fill="var(--c-sunken)" stroke="var(--c-ink)" stroke-width="1.3"/>`;
+  for(let j=0;j<pr.ys.length;j++){
+    const d=pr.ds[j],y=pr.ys[j];
+    s+=`<circle cx="${X(d)}" cy="${Y(y)}" r="2.4" fill="var(--c-accent)"/>`;
+    s+=`<text x="${X(d)+6}" y="${Y(y)+3}" font-size="9.5" fill="var(--c-ink2)" font-family="ui-monospace,Menlo,monospace">y ${fmtIn(y)} · d ${fmtIn(d)}</text>`;
+  }
+  s+=`<text x="${X(0)+3}" y="${Y(P.H)-6}" font-size="9.5" fill="var(--c-muted)" font-family="ui-monospace,Menlo,monospace">wall line</text>`;
+  s+='</svg>';
+  return s;
+}
+
+function planSVG(){
+  const Lw=M.Lw;
+  const zMax=Math.max(P.capBack+14, P.wrap+14, 56);
+  const w=640, pad=26;
+  const sc=(w-pad*2)/(P.L+zMax*0.0+40);
+  const h=zMax*sc+pad*2;
+  const X=x=>pad+x*sc, Y=z=>h-pad-z*sc;
+  const mp=x=>P.flip? P.L-x : x;
+  let s=`<svg viewBox="0 0 ${w} ${h.toFixed(0)}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">`;
+  // existing walls
+  s+=`<line x1="${X(-8)}" y1="${Y(0)}" x2="${X(P.L+8)}" y2="${Y(0)}" stroke="var(--c-baseline)" stroke-width="3"/>`;
+  s+=`<line x1="${X(mp(P.L))}" y1="${Y(0)}" x2="${X(mp(P.L))}" y2="${Y(zMax-6)}" stroke="var(--c-baseline)" stroke-width="3"/>`;
+  // door zone bracket
+  s+=`<line x1="${X(mp(0))}" y1="${Y(0)+8}" x2="${X(mp(P.doorLen))}" y2="${Y(0)+8}" stroke="var(--c-accent)" stroke-width="2"/>`;
+  s+=`<text x="${X(mp(P.doorLen/2))}" y="${Y(0)+19}" font-size="9.5" fill="var(--c-accent-ink)" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">door-access zone</text>`;
+  // cap curve
+  let capPts=[];
+  for(let x=0;x<=P.L;x+=4) capPts.push(`${X(mp(x)).toFixed(1)},${Y(M.capAt(x)).toFixed(1)}`);
+  s+=`<polyline points="${capPts.join(' ')}" fill="none" stroke="var(--c-muted)" stroke-width="1" stroke-dasharray="3 4"/>`;
+  s+=`<text x="${X(mp(P.L*0.52))}" y="${Y(M.capAt(P.L*0.52))-5}" font-size="9.5" fill="var(--c-muted)" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">depth budget</text>`;
+  // floor + top polylines
+  const fl=M.floorPlate.pts.map(p=>`${X(p.x).toFixed(1)},${Y(p.z).toFixed(1)}`).join(' ');
+  const tp=M.topPlate.pts.map(p=>`${X(p.x).toFixed(1)},${Y(p.z).toFixed(1)}`).join(' ');
+  s+=`<polyline points="${tp}" fill="none" stroke="var(--ramp-3)" stroke-width="1.6" stroke-dasharray="6 4"/>`;
+  s+=`<polyline points="${fl}" fill="none" stroke="var(--c-ink)" stroke-width="2"/>`;
+  // vehicle
+  if(P.showCar){
+    const s0=Math.min(24,P.L*0.1), clen=Math.min(190,P.L-48), z0=P.capDoor+6, cw=70;
+    const cx0=P.flip? P.L-s0-clen : s0;
+    s+=`<rect x="${X(cx0)}" y="${Y(z0+cw)}" width="${(clen*sc).toFixed(1)}" height="${(cw*sc).toFixed(1)}" fill="none" stroke="var(--c-baseline)" stroke-dasharray="5 4" rx="8"/>`;
+    s+=`<text x="${X(cx0+clen/2)}" y="${Y(z0+cw/2)}" font-size="10" fill="var(--c-muted)" text-anchor="middle">vehicle</text>`;
+  }
+  // phase divider (label sits inside the phase-1 region, door side)
+  const px=M.spacing*P.phaseBays;
+  const pxp=mp(px);
+  s+=`<line x1="${X(pxp)}" y1="${Y(0)}" x2="${X(pxp)}" y2="${Y(zMax-10)}" stroke="var(--c-accent)" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  if(P.flip)
+    s+=`<text x="${X(pxp)+4}" y="${Y(zMax-10)+10}" font-size="9.5" fill="var(--c-accent-ink)" text-anchor="start" font-family="ui-monospace,Menlo,monospace">|← phase 1</text>`;
+  else
+    s+=`<text x="${X(pxp)-4}" y="${Y(zMax-10)+10}" font-size="9.5" fill="var(--c-accent-ink)" text-anchor="end" font-family="ui-monospace,Menlo,monospace">phase 1 →|</text>`;
+  // legend
+  s+=`<g font-size="9.5" font-family="ui-monospace,Menlo,monospace" fill="var(--c-ink2)">`;
+  s+=`<line x1="${X(4)}" y1="16" x2="${X(4)+22}" y2="16" stroke="var(--c-ink)" stroke-width="2"/><text x="${X(4)+27}" y="19">face @ floor</text>`;
+  s+=`<line x1="${X(4)+110}" y1="16" x2="${X(4)+132}" y2="16" stroke="var(--ramp-3)" stroke-width="1.6" stroke-dasharray="6 4"/><text x="${X(4)+137}" y="19">face @ top</text>`;
+  s+=`</g>`;
+  // scale bar
+  s+=`<line x1="${X(P.L-48)}" y1="${h-8}" x2="${X(P.L)}" y2="${h-8}" stroke="var(--c-ink2)" stroke-width="2"/>`;
+  s+=`<text x="${X(P.L-24)}" y="${h-13}" font-size="9" fill="var(--c-muted)" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">48"</text>`;
+  s+='</svg>';
+  return s;
+}
+
+/* =============== edge info per facet =============== */
+function edgeKey(a,b){return Math.min(a,b)+'_'+Math.max(a,b)}
+function edgesForFacet(f){
+  const out=[];
+  const ids=f.unf.order;
+  for(let k=0;k<ids.length;k++){
+    const a=ids[k], b=ids[(k+1)%ids.length];
+    const e=M.edges.find(e=>e.key===edgeKey(a,b));
+    out.push(e||null);
+  }
+  return out;
+}
+function edgeShort(e,f){
+  if(!e) return '';
+  if(e.type==='floor') return 'floor · bevel '+fmtDeg(Math.abs(f.theta));
+  if(e.type==='top') return 'top edge';
+  if(e.type==='door-end') return 'door end · square';
+  if(e.type==='far-end') return 'end · square';
+  if(e.joint==='flat') return 'flat seam · square';
+  if(e.joint) return e.joint+' '+fmtDeg(e.gamma)+' · bev '+fmtDeg(e.gamma/2);
+  return '';
+}
+function mateOf(e,f){
+  if(!e||e.fids.length<2) return '—';
+  const other=e.fids.find(id=>id!==f.id);
+  return other!=null? M.facets[other].label : '—';
+}
+
+/* =============== tabs content =============== */
+function refreshInspector(){
+  const el=document.getElementById('inspector');
+  if(selId<0||!M.facets[selId]){ el.innerHTML='<div class="empty">Click any facet in the 3D view to see its unfolded dimensions, corner angles, and edge bevels.</div>'; return; }
+  const f=M.facets[selId];
+  const es=edgesForFacet(f);
+  const einfo=es.map(e=>edgeShort(e,f));
+  let rows='';
+  es.forEach((e,k)=>{
+    if(!e) return;
+    const letter=String.fromCharCode(65+k);
+    let joint='—', bevel='—';
+    if(e.type==='floor'){ joint='sits on floor plate'; bevel=fmtDeg(Math.abs(f.theta))+' (so edge sits flat)'; }
+    else if(e.type==='top'){ joint='free top edge'; bevel='square (or '+fmtDeg(Math.abs(f.theta))+' for level top)'; }
+    else if(e.type==='door-end'||e.type==='far-end'){ joint='wall end'; bevel='square'; }
+    else if(e.joint==='flat'){ joint='<span class="pill">flat</span> butt seam'; bevel='square'; }
+    else if(e.joint){ joint=`<span class="pill ${e.joint}">${e.joint}</span> fold ${fmtDeg(e.gamma)}`; bevel=fmtDeg(e.gamma/2)+' each panel'; }
+    rows+=`<tr><td class="mono">${letter}</td><td class="num">${fmtIn(e.len)}</td><td>${joint}</td><td class="num">${bevel}</td><td>${esc(mateOf(e,f))}</td></tr>`;
+  });
+  el.innerHTML=`
+  <div class="insp-wrap">
+    <div class="insp-svg">${facetSVG(f,{maxW:480,maxH:340,edgeInfo:einfo})}</div>
+    <div class="insp-data">
+      <h2 class="sec" style="margin-top:0">Panel ${esc(f.label)} <span class="pill" style="margin-left:6px">${CLASSES[f.cls].name}</span></h2>
+      <p class="note">Steepness <b class="mono">${fmtDeg(f.theta)}</b> from vertical · area <b class="mono">${(f.area/144).toFixed(1)} ft²</b> · ${f.tnuts.length} t-nuts ·
+      blank ${fmtIn(f.unf.w)} × ${fmtIn(f.unf.h)} ${f.unf.fits?'<span class="ok">fits 4×8 sheet ✓</span>':'<span class="warn">⚠ exceeds one sheet — seam it over a backer</span>'}</p>
+      <p class="note mini">${f.stiff.length? '<b>Back stiffeners</b> (2×4 flat, glue + screw to panel back before hanging): '+f.stiff.map(s=>fmtIn(s.len)).join(' · ') : 'No back stiffener needed — unsupported span is within the '+P.maxSpan+'" limit.'}</p>
+      <div class="tablewrap"><table class="data">
+        <thead><tr><th>Edge</th><th>Length</th><th>Joint</th><th>Saw bevel</th><th>Mates with</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <p class="note mini">Bevels are the tilt off square (0° = square cut). Ridge = fold toward the climber (bevel under, toward the face). Valley = fold away (back-bevel). Cut panels 1/16" proud and plane to the line after a dry fit.</p>
+    </div>
+  </div>`;
+}
+
+function refreshCutsheets(){
+  const el=document.getElementById('cutsheets');
+  const inPhase=M.facets.filter(f=>f.bay<P.phaseBays);
+  const bays=[...new Set(inPhase.map(f=>f.bay))].sort((a,b)=>a-b);
+  let html=`<div class="sheethead">
+    <h2 class="sec" style="margin:0">Garage climbing wall — Phase 1 cut sheets</h2>
+    <p class="note">Wall ${fmtFtIn(P.L)} × ${fmtFtIn(P.H)} · bays 1–${P.phaseBays} of ${M.profiles.length-1} · seed ${P.seed} · t-nut grid ${P.tnut}" · generated by the parametric designer</p>
+  </div>`;
+  html+=`<p class="note">Everything below covers <b>bays 1–${P.phaseBays}</b> (the first ${fmtFtIn(M.spacing*P.phaseBays)} from the garage-door end). Verify the first panel against the framed opening before cutting the rest — real lumber and real walls drift from the model. All bevels are degrees off a square (90°) cut.</p>`;
+
+  bays.forEach(b=>{
+    const fs=inPhase.filter(f=>f.bay===b);
+    html+=`<h2 class="sec">Bay ${b+1} <span class="mini mono">(${fmtIn(M.spacing*b)} – ${fmtIn(M.spacing*(b+1))} from door end)</span></h2>`;
+    html+='<div class="cardgrid">';
+    fs.forEach(f=>{
+      const es=edgesForFacet(f);
+      const einfo=es.map(e=>edgeShort(e,f));
+      html+=`<div class="panelcard">
+        <h4><span class="mono">${esc(f.label)}</span><span class="st">${fmtDeg(f.theta)} · ${CLASSES[f.cls].name} · ${f.tnuts.length} t-nuts</span></h4>
+        ${facetSVG(f,{maxW:300,maxH:210,edgeInfo:einfo})}
+        <div class="mini">blank ${fmtIn(f.unf.w)} × ${fmtIn(f.unf.h)} ${f.unf.fits?'· fits sheet ✓':'· ⚠ over one sheet'} · ${f.stiff.length? f.stiff.length+' back stiffener'+(f.stiff.length>1?'s':''):'no stiffeners'}</div>
+      </div>`;
+    });
+    html+='</div>';
+  });
+
+  // seams table for phase
+  const phaseEdges=M.edges.filter(e=>{
+    if(e.fids.length<1) return false;
+    const inv=e.fids.some(id=>M.facets[id].bay<P.phaseBays);
+    return inv && (e.type==='seam');
+  });
+  html+=`<h2 class="sec">Seam schedule (phase 1)</h2>
+  <p class="note">Every seam gets solid backing. Folds under ~5°: one plain 2×4 laid flat under the seam backs both panel edges (the degree or two of gap behind each edge is harmless). Steeper folds: rip two 2×4s at the listed bevel, glue + screw them together along the ripped edges into an angled <b>spine</b> that matches the fold, hang the spine between the ribs, then screw both panel edges into it (6" o.c., with glue). Stop every spine end 1½–2" short of the nodes: up to six members converge at a node (two mitered scab segments per side plus the arriving spines), and the hold-back de-conflicts them — the panel corners are carried by the scabs, not the spine ends. The rip is hidden and forgiving — the panel bevels are the visible joint, so fit those first. Flat seams take plain 2×4 blocking; vertical seams at bay lines land on the ribs — see Structure.</p>
+  <div class="tablewrap"><table class="data"><thead><tr><th>Seam</th><th>Panels</th><th>Length</th><th>Joint</th><th>Fold</th><th>Panel bevel</th><th>Backer rip</th></tr></thead><tbody>`;
+  phaseEdges.sort((a,b)=>a.fids[0]-b.fids[0]).forEach((e,i)=>{
+    const names=e.fids.map(id=>M.facets[id].label).join(' ↔ ');
+    const j=e.joint||'flat';
+    html+=`<tr><td class="mono">S${i+1}</td><td class="mono">${esc(names)}</td><td class="num">${fmtIn(e.len)}</td>
+    <td><span class="pill ${j==='flat'?'':j}">${j}</span></td><td class="num">${j==='flat'?'—':fmtDeg(e.gamma)}</td>
+    <td class="num">${j==='flat'?'0° (square)':fmtDeg(e.gamma/2)}</td><td class="num">${j==='flat'?'none — plain block':fmtDeg(e.gamma/2)+' × '+fmtIn(e.len)}</td></tr>`;
+  });
+  html+='</tbody></table></div>';
+
+  // plates
+  html+=`<h2 class="sec">Plates (phase 1)</h2><div class="tablewrap"><table class="data">
+  <thead><tr><th>Member</th><th>Runs</th><th>Length</th><th>End miters (plan)</th></tr></thead><tbody>`;
+  for(let i=0;i<Math.min(P.phaseBays,M.floorPlate.segs.length);i++){
+    const s=M.floorPlate.segs[i];
+    html+=`<tr><td>Floor plate ${i+1} <span class="mini">(PT lumber)</span></td><td class="mono">bay ${i+1}, on slab</td><td class="num">${fmtIn(s.len)}</td><td class="num">${fmtDeg(M.floorPlate.miters[i])} / ${fmtDeg(M.floorPlate.miters[i+1])}</td></tr>`;
+  }
+  for(let i=0;i<Math.min(P.phaseBays,M.topPlate.segs.length);i++){
+    const s=M.topPlate.segs[i];
+    html+=`<tr><td>Top plate ${i+1}</td><td class="mono">bay ${i+1}, at ${fmtIn(P.H)}</td><td class="num">${fmtIn(s.len)}</td><td class="num">${fmtDeg(M.topPlate.miters[i])} / ${fmtDeg(M.topPlate.miters[i+1])}</td></tr>`;
+  }
+  html+='</tbody></table></div>';
+  html+=`<button class="btn" onclick="window.print()">Print these sheets</button>`;
+  el.innerHTML=html;
+}
+
+function refreshStructure(){
+  const el=document.getElementById('structure');
+  let html=`<h2 class="sec" style="margin-top:0">Ribs — one at every bay line</h2>
+  <p class="note">Each vertical bay line gets a rib: the wall's cross-section cut from ¾" plywood (or built as a 2×4 ladder where depth exceeds ~16"). The rib's front edge follows the profile below; its back edge lands on the existing wall via a vertical 2×4 <b>back chord</b> that takes the wall screws (see Anchoring). Scab a 2×4 flat against each rib edge where two skins land, so every panel edge has ≥1½" of screw meat. Coordinates are <span class="mono">y (height) · d (out from wall)</span> at each node.</p>
+  <div class="cardgrid">`;
+  M.profiles.forEach((pr,i)=>{
+    const inPhase=i<=P.phaseBays;
+    html+=`<div class="panelcard" style="${inPhase?'':'opacity:.55'}">
+      <h4><span class="mono">Rib P${i}</span><span class="st">${pr.corner?'corner':(pr.s>P.L+0.01? 'wrap +'+fmtIn(pr.s-P.L) : fmtIn(pr.s)+' from door')} ${inPhase?'· phase 1':''}</span></h4>
+      ${ribSVG(pr)}
+      <div class="mini">${Math.max(...pr.ds)>16?'depth > 16" — build as 2×4 ladder truss':'cut from ¾" ply'} · face angle ${fmtDeg(pr.thetaDeg)}</div>
+    </div>`;
+  });
+  html+=`</div>
+  <h2 class="sec">Anchoring</h2>
+  <ul class="notes">
+    <li><b>Into the wall — no drywall removal needed.</b> Drywall stays up; it carries compression fine. Each rib gets a vertical 2×4 <b>back chord</b> flat against the wall: 3/8" × 3¾" structural screws (GRK/LedgerLok) drive straight through the chord + drywall into the stud (top, middle, bottom). The web <b>laps the chord's side face</b> — chord goes up first, plumb on the stud line, then the web slides against it and takes a vertical row of screws through the ply into the chord edge, 12" o.c. full height. Both gravity and peel load those screws in shear (their strong direction); the peel tension is handed to the stud screws in withdrawal. Center each chord on its stud, lap the same side at every rib so bay widths stay identical, and give the steepest ribs a second chord or a ply gusset on the other side. Never screw sideways through the rib plate into bare drywall.</li>
+    <li><b>Line ribs up with studs:</b> 48" bays = exactly 3 × 16"-OC stud bays, so if rib P0 sits on a stud center, every rib lands on one — find your studs first and slide the whole layout to match. Where studs don't cooperate, lag horizontal 2×6 ledgers across every stud at top/mid/bottom and hang the ribs off those instead. Overhanging sections try to peel <em>away</em> from the wall at the top: the top connection is the one that matters.</li>
+    <li><b>Floor:</b> two PT plates on sill seal — the <b>face plate</b> under the skin's beveled bottom edge (the one in the plate schedule) and a <b>wall sleeper</b> along the base of the existing wall. Cut every web's bottom edge 1½" up so it bears on both plates and no untreated wood ever touches the slab; angle-bracket or toe-screw the web to each plate, and land the back chord on the sleeper. Tapcons or powder pins into the slab, or skip slab anchors and tie the plates back to the wall framing — the wall can't walk if the top is fixed.</li>
+    <li><b>Rib splices (walls over 96" tall):</b> every ply web gets one — square butt joint + glue with a ¾" ply gusset ~24" tall glued and screwed on each side (one side only where the chord or seam scabs are in the way), placed in the middle third of the height and at least 8" from any node crease. Stagger splice heights 12–16" between neighboring ribs so no splice lines up with its neighbors or with a skin seam row.</li>
+    <li><b>Steep bays:</b> where face angle exceeds ~12°, also tie the top plate to ceiling joists or add 2×4 diagonal kickers from rib tops back to the wall base.</li>
+    <li><b>Lateral sway (along the wall):</b> the skin is a plywood diaphragm — sideways loads travel through it to the corner, where the two wall runs brace each other, and the L-shape is the stiffest spot on the wall. The two places that need help are the free top edge (the ceiling ties above cover it) and the <b>open end of the wrap</b>: skin that end — cut a second copy of the last rib's profile and use it as a closure panel over the end rib. It boxes the end into a shear panel, kills the sway mode, keeps kids and stored junk out of the cavity, and looks finished.</li>
+    <li><b>End of phase 1:</b> the last phase rib (P${P.phaseBays}) is temporary-exposed — build it as a clean 2×4 ladder; the next phase bolts to it.</li>
+  </ul>`;
+  el.innerHTML=html;
+}
+
+function refreshMaterials(){
+  const el=document.getElementById('materials');
+  const st=M.stats;
+  const sheetsPh=Math.ceil(st.areaPh*1.18/4608);
+  const sheetsAll=Math.ceil(st.areaAll*1.18/4608);
+  // rib ply
+  let ribAreaPh=0, ribAreaAll=0;
+  M.profiles.forEach((pr,i)=>{
+    let a=0;
+    const pts=[[0,0]].concat(pr.ys.map((y,j)=>[pr.ds[j],y])).concat([[0,P.H]]);
+    for(let k=0;k<pts.length;k++){const p=pts[k],q=pts[(k+1)%pts.length]; a+=p[0]*q[1]-q[0]*p[1];}
+    a=Math.abs(a)/2;
+    ribAreaAll+=a; if(i<=P.phaseBays) ribAreaPh+=a;
+  });
+  const ribShPh=Math.ceil(ribAreaPh*1.3/4608), ribShAll=Math.ceil(ribAreaAll*1.3/4608);
+  // 2x4: seams*2 + plates*2 + 15%
+  function lf(phase){
+    let l=0;
+    M.edges.forEach(e=>{
+      if(e.type!=='seam') return;
+      const inv=e.fids.some(id=>M.facets[id].bay<(phase?P.phaseBays:999));
+      if(!inv) return;
+      l+=e.len*2;
+    });
+    const nb=phase?P.phaseBays:M.floorPlate.segs.length;
+    for(let i=0;i<nb;i++){ l+=M.floorPlate.segs[i].len+M.topPlate.segs[i].len+M.spacing; }
+    M.facets.forEach(f=>{ if(!phase || f.bay<P.phaseBays) l+=(f.stiff||[]).reduce((a,s)=>a+s.len,0); });
+    M.profiles.forEach((pr,i)=>{ if(!phase || i<=P.phaseBays) l+=P.H; });
+    return l*1.15;
+  }
+  const lfPh=lf(true), lfAll=lf(false);
+  const row=(k,ph,all,note)=>`<tr><td>${k}</td><td class="num">${ph}</td><td class="num">${all}</td><td class="mini">${note||''}</td></tr>`;
+  el.innerHTML=`
+  <h2 class="sec" style="margin-top:0">Shopping list</h2>
+  <div class="tablewrap"><table class="data">
+    <thead><tr><th>Item</th><th>Phase 1 (bays 1–${P.phaseBays})</th><th>Full wall</th><th></th></tr></thead>
+    <tbody>
+    ${row('¾" ACX plywood, 4×8 (skins)', sheetsPh+' sheets', sheetsAll+' sheets','sanded one face; no OSB')}
+    ${row('¾" ply for ribs', ribShPh+' sheets', ribShAll+' sheets','rips + gussets')}
+    ${row('2×4 (backers, plates, chords, stiffeners)', Math.ceil(lfPh/96)+' pcs (8\')', Math.ceil(lfAll/96)+' pcs (8\')','+ PT for floor plates')}
+    ${row('3/8"-16 t-nuts', Math.ceil(st.tnPh*1.1), Math.ceil(st.tnAll*1.1),'4-prong; add ~10 screw-in for spinners')}
+    ${row('Climbing area', (st.areaPh/144).toFixed(0)+' ft²', (st.areaAll/144).toFixed(0)+' ft²','')}
+    ${row('Structural screws 3/8×3¾', '~'+(P.phaseBays+1)*4, '~'+(M.profiles.length)*4,'GRK/LedgerLok, into studs')}
+    ${row('#8×1⅝ + #8×2½ screws','5 lb','10 lb','skins 6" o.c. on edges')}
+    </tbody>
+  </table></div>
+  <p class="note">Estimates include ~18% plywood waste from the angled cuts. T-nut drill: 7/16" brad-point from the face, insert from the back, seat with a mallet <em>before</em> the panel goes up. Shift any t-nut that lands within 1" of framing after dry-fit.</p>`;
+}
+
+function refreshNotes(){
+  const el=document.getElementById('buildnotes');
+  el.innerHTML=`
+  <h2 class="sec" style="margin-top:0">How this design works</h2>
+  <ul class="notes">
+    <li><b>Difficulty follows the depth budget.</b> Near the garage door the wall must stay shallow for vehicle-door access, and shallow means vertical — which is exactly the easy terrain kids start on. As the depth budget opens up toward the back, the average angle steepens to a ${fmtDeg(P.thEnd)} cave and the ${P.wrap>0?'wrap onto the back wall adds an inside-corner dihedral for stemming':'far end steepens'}. Constraint and progression point the same way.</li>
+    <li><b>Geometry:</b> vertical ribs every ${fmtIn(M?M.spacing:P.bay)} define profile polylines; spans between ribs triangulate wherever adjacent profiles disagree, giving the faceted surface. Every facet is planar by construction, so every panel is a straight saw cut with a bevel.</li>
+    <li><b>Door-access bays stay dead flat</b> (jitter is zero there): total protrusion is just framing + ¾" ply ≈ ${fmtIn(MIN_D+0.75)}, plus holds. Use low-profile footholds/screw-ons lowest on those bays if door swing is tight.</li>
+    <li><b>Adult duty is a per-panel calculation, not a blanket rule.</b> Each panel's governing unsupported span (largest inscribed distance between supported edges) is measured against the "Max skin span" setting (currently ${P.maxSpan}"); only panels that exceed it get dashed back-stiffener lines on their cut diagrams — 2×4s laid flat, glued + screwed to the panel back between the seam backers before the panel goes up. 24" or tighter suits adults; a kids-only wall can relax toward 32".</li>
+  </ul>
+  <h2 class="sec">Bevel convention</h2>
+  <p class="note">Every seam lists a <b>fold angle γ</b> (how far the two faces fold out of plane) and a <b>panel bevel = γ/2</b>. Set the saw to γ/2 off square for both mating edges. On a <b>ridge</b> (folds toward the climber) the bevel leans toward the face — the painted faces meet in a sharp line. On a <b>valley</b> (folds away, like the back-wall corner) back-bevel, or simply butt one panel over the other's edge and let the seam backer carry it — valleys are forgiving. Behind the joint, the seam-backer pair copies the same numbers: two 2×4s laid flat against the panel backs, mating edges ripped at γ/2, pre-assembled into a spine (see the seam-schedule note on the cut sheets).</p>
+  <svg viewBox="0 0 420 110" style="max-width:420px" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="var(--c-ink)" stroke-width="2" fill="var(--c-sunken)">
+      <path d="M20 80 L120 50 L124 63 L24 93 Z"/><path d="M120 50 L220 80 L216 93 L116 63 Z"/>
+    </g>
+    <text x="120" y="38" font-size="11" fill="var(--c-ink2)" text-anchor="middle">ridge · fold γ · bevel γ/2 each</text>
+    <g stroke="var(--c-ink)" stroke-width="2" fill="var(--c-sunken)">
+      <path d="M250 55 L350 85 L346 98 L246 68 Z"/><path d="M350 85 L410 40 L419 50 L359 95 Z"/>
+    </g>
+    <text x="345" y="28" font-size="11" fill="var(--c-ink2)" text-anchor="middle">valley · back-bevel or butt</text>
+  </svg>
+  <h2 class="sec">Build order (phase 1)</h2>
+  <ul class="notes">
+    <li>Snap a level line, find studs, lag the ledger/plates. Set rib P0 at the door end, then P1, P2 — plumb and string-line them.</li>
+    <li>Block seam backers between ribs at each row line. Dry-fit each skin, scribe, then drill the t-nut grid <em>on the ground</em>, hammer t-nuts, and hang the panel (glue on framing + screws 6" o.c.).</li>
+    <li>Paint before holds: porch &amp; floor enamel, sand additive optional for texture.</li>
+  </ul>
+  <h2 class="sec">Safety</h2>
+  <ul class="notes">
+    <li>Padding is not optional: 4"+ of crash pad / gym mat over the full landing zone (wall face + 6 ft out), thicker under the steep bays.</li>
+    <li>Kids climb supervised; keep the landing clear of holds, tools, and each other. Re-torque holds monthly — kids' walls loosen fast.</li>
+    <li>This tool does the geometry; it is not an engineering stamp. Anchor into framing per the Structure tab, and if your garage wall is unusual (masonry, steel studs, movement joints) size the anchorage to suit.</li>
+  </ul>
+  <h2 class="sec">T-nut spec</h2>
+  <ul class="notes">
+    <li>3/8"-16 zinc 4-prong t-nuts on a ${P.tnut}" staggered grid (${P.inset}" edge inset), drilled 7/16" from the show face. About ${Math.round(M.stats.tnAll/(M.stats.areaAll/4608))} per sheet at current spacing.</li>
+    <li>Buy 10–15% extra plus a bag of screw-in t-nuts to rescue any that spin behind finished panels.</li>
+  </ul>
+  <h2 class="sec">Open source</h2>
+  <p class="note">This tool is a single dependency-free HTML file, released into the public domain under the <a href="https://unlicense.org" target="_blank" rel="noopener">Unlicense</a> — do anything you like with it. Source: <a href="https://github.com/jeffwoods/climbing-wall-designer" target="_blank" rel="noopener">github.com/jeffwoods/climbing-wall-designer</a>.</p>`;
+}
+
+/* =============== bolt-on volume generator =============== */
+const VOL_PRESETS={
+  pyramid:{vw:24,vd:24,vh:8,vtw:0,vtd:0,vsx:0,vsy:0},
+  ridge:{vw:32,vd:10,vh:6,vtw:20,vtd:0,vsx:0,vsy:0},
+  wedge:{vw:24,vd:16,vh:10,vtw:0,vtd:0,vsx:12,vsy:0},
+  shelf:{vw:28,vd:20,vh:7,vtw:16,vtd:10,vsx:0,vsy:0}
+};
+const VOLCTRL=[
+  {k:'vw',label:'Base width',min:8,max:48,step:2},
+  {k:'vd',label:'Base depth',min:6,max:48,step:2},
+  {k:'vh',label:'Height',min:2,max:24,step:1},
+  {k:'vtw',label:'Top width',min:0,max:48,step:2},
+  {k:'vtd',label:'Top depth',min:0,max:48,step:2},
+  {k:'vsx',label:'Apex skew X',min:-16,max:16,step:1},
+  {k:'vsy',label:'Apex skew Y',min:-16,max:16,step:1}
+];
+function volumeModel(){
+  const W=P.vw, D=P.vd, H=Math.max(1,P.vh);
+  const tw=clamp(P.vtw,0,W), td=clamp(P.vtd,0,D);
+  const cx=W/2+P.vsx, cyc=D/2+P.vsy;
+  const raw=[V(0,0,0),V(W,0,0),V(W,D,0),V(0,D,0),
+    V(cx-tw/2,cyc-td/2,H),V(cx+tw/2,cyc-td/2,H),V(cx+tw/2,cyc+td/2,H),V(cx-tw/2,cyc+td/2,H)];
+  const verts=[];
+  const vmap=raw.map(p=>{
+    for(let i=0;i<verts.length;i++) if(dist(verts[i],p)<0.05) return i;
+    verts.push(p); return verts.length-1;
+  });
+  const faceIdx=[[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]];
+  if(tw>1&&td>1) faceIdx.push([4,5,6,7]);
+  const names=['A','B','C','D','T'];
+  const faces=[];
+  faceIdx.forEach((fi,q)=>{
+    let ids=[];
+    fi.forEach(oi=>{ const id=vmap[oi]; if(!ids.length||id!==ids[ids.length-1]) ids.push(id); });
+    while(ids.length>1&&ids[0]===ids[ids.length-1]) ids.pop();
+    if(new Set(ids).size<3) return;
+    let n=V(0,0,0);
+    for(let k=0;k<ids.length;k++){
+      const p=verts[ids[k]], q2=verts[ids[(k+1)%ids.length]];
+      n.x+=(p.y-q2.y)*(p.z+q2.z); n.y+=(p.z-q2.z)*(p.x+q2.x); n.z+=(p.x-q2.x)*(p.y+q2.y);
+    }
+    const area=len(n)/2; if(area<2) return;
+    n=nrm(n);
+    let ctr=V(0,0,0); ids.forEach(i=>ctr=add(ctr,verts[i])); ctr=scl(ctr,1/ids.length);
+    if(dot(n,sub(ctr,V(W/2,D/2,H*0.35)))<0){ ids=ids.slice().reverse(); n=scl(n,-1); }
+    faces.push({id:faces.length, label:'Face '+names[q], vids:ids, n, ctr, area, cls:2, stiff:[],
+      theta:Math.acos(clamp(n.z,-1,1))*R2D});
+  });
+  const vmm={verts,faces};
+  const em=new Map();
+  faces.forEach(f=>{
+    for(let k=0;k<f.vids.length;k++){
+      const a=f.vids[k], b=f.vids[(k+1)%f.vids.length];
+      const key=Math.min(a,b)+'_'+Math.max(a,b);
+      if(!em.has(key)) em.set(key,{key,va:a,vb:b,fids:[]});
+      em.get(key).fids.push(f.id);
+    }
+  });
+  vmm.edges=[...em.values()];
+  vmm.edges.forEach(e=>{
+    e.len=dist(verts[e.va],verts[e.vb]);
+    if(verts[e.va].z<0.01&&verts[e.vb].z<0.01) e.type='base';
+    else if(e.fids.length===2){
+      e.type='arete';
+      e.gamma=Math.acos(clamp(dot(faces[e.fids[0]].n,faces[e.fids[1]].n),-1,1))*R2D;
+    } else e.type='open';
+  });
+  faces.forEach(f=>{
+    f.unf=unfold(vmm,f);
+    f.tnuts=P.vtn? tnutLayout(f.unf):[];
+  });
+  return vmm;
+}
+function volEdgeInfo(vm,f){
+  const ids=f.unf.order; const out=[];
+  for(let k=0;k<ids.length;k++){
+    const a=ids[k], b=ids[(k+1)%ids.length];
+    const e=vm.edges.find(e2=>e2.key===Math.min(a,b)+'_'+Math.max(a,b));
+    if(!e){ out.push(''); continue; }
+    if(e.type==='base'){
+      const fb=90-f.theta;
+      out.push('base · '+(fb<=45? 'flange bevel '+fmtDeg(fb) : 'square + cleat inside'));
+    } else if(e.type==='arete'){
+      const mate=e.fids.find(id=>id!==f.id);
+      out.push('join '+vm.faces[mate].label.replace('Face ','')+' · fold '+fmtDeg(e.gamma)+' · bev '+fmtDeg(e.gamma/2));
+    } else out.push('open edge');
+  }
+  return out;
+}
+function isoSVG(vm){
+  const yaw=-0.7, pit=0.46;
+  const cy0=Math.cos(yaw), sy0=Math.sin(yaw), cp=Math.cos(pit), sp=Math.sin(pit);
+  const pr=p=>{ const x=p.x*cy0-p.y*sy0, y=p.x*sy0+p.y*cy0; return {x, y:y*sp-p.z*cp, d:y*cp+p.z*sp}; };
+  const pts=vm.verts.map(pr);
+  const xs=pts.map(p=>p.x), ys2=pts.map(p=>p.y);
+  const minx=Math.min(...xs), maxx=Math.max(...xs), miny=Math.min(...ys2), maxy=Math.max(...ys2);
+  const scale=Math.min(250/((maxx-minx)||1), 185/((maxy-miny)||1));
+  const X=p=>18+(p.x-minx)*scale, Y=p=>14+(p.y-miny)*scale;
+  const W2=(maxx-minx)*scale+36, H2=(maxy-miny)*scale+28;
+  const light=nrm(V(0.45,-0.5,0.74));
+  const order=vm.faces.map(f=>({f,d:pr(f.ctr).d})).sort((a,b)=>a.d-b.d);
+  let s=`<svg viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">`;
+  order.forEach(({f})=>{
+    const pp=f.vids.map(i=>pts[i]);
+    const lam=Math.max(0,dot(f.n,light));
+    s+=`<polygon points="${pp.map(p=>X(p).toFixed(1)+','+Y(p).toFixed(1)).join(' ')}" fill="var(--ramp-2)" fill-opacity="${(0.16+0.5*lam).toFixed(2)}" stroke="var(--c-ink)" stroke-width="1.2" stroke-linejoin="round"/>`;
+  });
+  s+='</svg>';
+  return s;
+}
+function refreshVolumes(){
+  const el=document.getElementById('volumes');
+  if(!document.getElementById('volctl')){
+    let h=`<p class="note" style="margin-top:0"><b>Bolt-on volumes from your offcuts.</b> One parametric family (skewed frustum) covers pyramids, ridges, wedges, and flat-top shelves. Faces are ¾" ply joined at the arêtes with the same fold/bevel convention as the wall seams; volumes mount with screws through their faces into the wall panels — no t-nuts needed to hang them.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0" id="volpresets">`;
+    Object.keys(VOL_PRESETS).forEach(k=>{ h+=`<button class="btn small" data-vp="${k}">${k[0].toUpperCase()+k.slice(1)}</button>`; });
+    h+=`</div><div id="volctl" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 22px;max-width:940px"></div>
+    <div class="ctl checkbox" style="margin:2px 0 8px"><input type="checkbox" id="c_vtn"><label for="c_vtn">T-nuts in the faces (install before assembly)</label></div>
+    <div id="volout"></div>`;
+    el.innerHTML=h;
+    const ctl=document.getElementById('volctl');
+    VOLCTRL.forEach(it=>{
+      const w2=document.createElement('div'); w2.className='ctl';
+      w2.innerHTML=`<div class="lab"><label for="c_${it.k}">${it.label}</label><output id="o_${it.k}" class="mono"></output></div>
+        <input type="range" id="c_${it.k}" min="${it.min}" max="${it.max}" step="${it.step}">`;
+      const inp=w2.querySelector('input');
+      inp.addEventListener('input',()=>{ P[it.k]=parseFloat(inp.value); document.getElementById('o_'+it.k).textContent=P[it.k]+'"'; renderVolOut(); saveHash(); });
+      ctl.appendChild(w2);
+    });
+    document.getElementById('c_vtn').addEventListener('change',e=>{ P.vtn=e.target.checked?1:0; renderVolOut(); saveHash(); });
+    document.getElementById('volpresets').addEventListener('click',e=>{
+      const k=e.target.dataset&&e.target.dataset.vp; if(!k) return;
+      Object.assign(P,VOL_PRESETS[k]);
+      syncVolControls(); renderVolOut(); saveHash();
+    });
+  }
+  syncVolControls();
+  renderVolOut();
+}
+function syncVolControls(){
+  VOLCTRL.forEach(it=>{
+    const i2=document.getElementById('c_'+it.k);
+    if(i2){ i2.value=P[it.k]; const o=document.getElementById('o_'+it.k); if(o) o.textContent=P[it.k]+'"'; }
+  });
+  const t=document.getElementById('c_vtn'); if(t) t.checked=!!P.vtn;
+}
+function renderVolOut(){
+  const out=document.getElementById('volout'); if(!out) return;
+  const vm=volumeModel();
+  const areaF=vm.faces.reduce((a,f)=>a+f.area,0)/144;
+  let rows='';
+  vm.edges.forEach((e,i)=>{
+    if(e.type==='arete'){
+      const names2=e.fids.map(id=>vm.faces[id].label.replace('Face ','')).join(' ↔ ');
+      rows+=`<tr><td class="mono">E${i+1}</td><td class="mono">${names2}</td><td class="num">${fmtIn(e.len)}</td><td class="num">${fmtDeg(e.gamma)}</td><td class="num">${fmtDeg(e.gamma/2)} each</td></tr>`;
+    }
+  });
+  let cards='';
+  vm.faces.forEach(f=>{
+    cards+=`<div class="panelcard"><h4><span class="mono">${esc(f.label)}</span><span class="st">${fmtDeg(f.theta)} from base · ${f.tnuts.length} t-nuts</span></h4>
+      ${facetSVG(f,{maxW:280,maxH:200,edgeInfo:volEdgeInfo(vm,f)})}
+      <div class="mini">blank ${fmtIn(f.unf.w)} × ${fmtIn(f.unf.h)}</div></div>`;
+  });
+  out.innerHTML=`
+  <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;margin:6px 0 4px">
+    <div class="panelcard" style="flex:0 1 320px">${isoSVG(vm)}<div class="mini">${fmtIn(P.vw)} × ${fmtIn(P.vd)} footprint · ${fmtIn(P.vh)} tall · ~${areaF.toFixed(1)} ft² of offcut</div></div>
+    <div style="flex:1 1 360px" class="tablewrap"><table class="data"><thead><tr><th>Arête</th><th>Joins</th><th>Length</th><th>Fold</th><th>Saw bevel</th></tr></thead><tbody>${rows}</tbody></table></div>
+  </div>
+  <div class="cardgrid">${cards}</div>
+  <ul class="notes">
+    <li><b>Assembly:</b> drill and set the t-nuts in each face first, then glue + screw the arêtes (predrill near the beveled edges). Where a fold is steep, run an interior 2×4 cleat along the joint instead of relying on the miter alone.</li>
+    <li><b>Base edges:</b> a face card saying "square + cleat inside" means the flange bevel would exceed 45° — leave that bottom edge square, screw a 2×4 cleat inside the base perimeter, and drive the mounting screws through the cleat rather than a knife-edge.</li>
+    <li><b>Mounting:</b> #8 × 2" screws through the faces near the base into the wall panel, roughly 8" o.c. around the perimeter. For volumes adults will load dynamically, land screws over the seam backers / stiffener lines shown on the wall cut sheets. A strip of weatherstrip under the base edges seats it snug on any facet.</li>
+  </ul>`;
+}
+
+/* =============== joinery detail drawings (static) =============== */
+const DWG_T='fill="var(--c-ink)" font-size="14" font-family="system-ui,sans-serif"';
+const DWG_S='fill="var(--c-ink2)" font-size="12" font-family="system-ui,sans-serif"';
+const DWG_L='stroke="var(--c-muted)" stroke-width="1"';
+const DWG_SCREW='stroke="var(--c-ink2)"';
+const DETAILS=[
+{t:'Seam spine — any folded skin seam', c:'Section looking along the seam (ridge shown; a valley is the same parts with the rips tilted the other way). Folds under ~5° take one plain un-ripped 2×4 instead.', svg:`
+<svg viewBox="0 0 720 400" xmlns="http://www.w3.org/2000/svg">
+<text x="360" y="52" ${DWG_T} text-anchor="middle">climber side</text>
+<path d="M352 62 L360 74 L368 62" fill="none" ${DWG_L} stroke-width="1.5"/>
+<g fill="var(--dwg-ply)" stroke="var(--c-ink)" stroke-width="1.5">
+<g transform="translate(360,120) rotate(15)"><path d="M0 0 L260 0 L260 20 L5.4 20 Z"/></g>
+<g transform="translate(360,120) scale(-1,1) rotate(15)"><path d="M0 0 L260 0 L260 20 L5.4 20 Z"/></g>
+</g>
+<g fill="var(--dwg-lumber)" stroke="var(--c-ink)" stroke-width="1.5">
+<g transform="translate(360,120) rotate(15)"><path d="M8 21 L99 21 L99 60 L18.5 60 Z"/></g>
+<g transform="translate(360,120) scale(-1,1) rotate(15)"><path d="M8 21 L99 21 L99 60 L18.5 60 Z"/></g>
+</g>
+<g transform="translate(360,120) rotate(15)"><line x1="60" y1="-5" x2="60" y2="50" ${DWG_SCREW} stroke-width="2"/><line x1="54" y1="-5" x2="66" y2="-5" ${DWG_SCREW} stroke-width="2.5"/></g>
+<g transform="translate(360,120) scale(-1,1) rotate(15)"><line x1="60" y1="-5" x2="60" y2="50" ${DWG_SCREW} stroke-width="2"/><line x1="54" y1="-5" x2="66" y2="-5" ${DWG_SCREW} stroke-width="2.5"/></g>
+<line x1="360" y1="120" x2="482" y2="87.4" ${DWG_L} stroke-dasharray="5 4"/>
+<path d="M429.6 101.4 A72 72 0 0 1 429.6 138.6" fill="none" ${DWG_L} stroke-width="1.2"/>
+<text x="452" y="126" ${DWG_S}>fold γ (from the seam schedule)</text>
+<line x1="360" y1="118" x2="300" y2="86" ${DWG_L}/>
+<text x="296" y="80" ${DWG_S} text-anchor="end">panel edges beveled γ/2 — the visible joint</text>
+<line x1="366" y1="182" x2="366" y2="290" ${DWG_L}/>
+<text x="366" y="308" ${DWG_S} text-anchor="middle">mating edges ripped γ/2, glued + screwed into a spine</text>
+<text x="366" y="326" ${DWG_S} text-anchor="middle">assemble on the bench; ends land on the ribs</text>
+<line x1="424" y1="136" x2="520" y2="168" ${DWG_L}/>
+<text x="524" y="172" ${DWG_S}>screws 6″ o.c. from the face, glue on every strip</text>
+<line x1="212" y1="176" x2="150" y2="222" ${DWG_L}/>
+<text x="148" y="238" ${DWG_S} text-anchor="end">¾″ ply skin</text>
+<line x1="268" y1="196" x2="230" y2="258" ${DWG_L}/>
+<text x="228" y="274" ${DWG_S} text-anchor="end">2×4 laid flat against the panel back</text>
+</svg>`},
+{t:'Spine ends at a rib — butt joints both sides', c:'Face-on at a rib with the skins removed. Each bay’s seam spine is coplanar with the vertical scab (both lie flat against the panel backs) and simply butts its edge — cut long, scribe, toe-screw. The two bays’ seams land at different heights because row heights jitter per profile.', svg:`
+<svg viewBox="0 0 720 430" xmlns="http://www.w3.org/2000/svg">
+<g fill="var(--dwg-lumber)" stroke="var(--c-ink)" stroke-width="1.3">
+<rect x="325" y="40" width="21" height="350"/>
+<rect x="356.5" y="40" width="21" height="350"/>
+<rect x="60" y="121" width="265" height="49"/>
+<rect x="60" y="170" width="265" height="49"/>
+<rect x="377.5" y="213" width="282" height="49"/>
+<rect x="377.5" y="262" width="282" height="49"/>
+</g>
+<rect x="346" y="40" width="10.5" height="350" fill="var(--dwg-ply)" stroke="var(--c-ink)" stroke-width="1.3"/>
+<line x1="60" y1="170" x2="325" y2="170" stroke="var(--c-accent)" stroke-width="1.6" stroke-dasharray="7 5"/>
+<line x1="377.5" y1="262" x2="660" y2="262" stroke="var(--c-accent)" stroke-width="1.6" stroke-dasharray="7 5"/>
+<line x1="308" y1="146" x2="331" y2="152" ${DWG_SCREW} stroke-width="2"/>
+<line x1="308" y1="196" x2="331" y2="190" ${DWG_SCREW} stroke-width="2"/>
+<line x1="394" y1="238" x2="371" y2="244" ${DWG_SCREW} stroke-width="2"/>
+<line x1="394" y1="288" x2="371" y2="282" ${DWG_SCREW} stroke-width="2"/>
+<circle cx="335.5" cy="90" r="2.5" fill="var(--c-ink2)"/><circle cx="367" cy="120" r="2.5" fill="var(--c-ink2)"/>
+<circle cx="335.5" cy="330" r="2.5" fill="var(--c-ink2)"/><circle cx="367" cy="352" r="2.5" fill="var(--c-ink2)"/>
+<text x="351" y="28" ${DWG_S} text-anchor="middle">rib assembly: 2×4 scab · ¾″ web edge · 2×4 scab</text>
+<line x1="351" y1="32" x2="351" y2="44" ${DWG_L}/>
+<line x1="180" y1="121" x2="130" y2="84" ${DWG_L}/>
+<text x="126" y="78" ${DWG_S} text-anchor="end">left bay’s seam spine — butts the scab edge,</text>
+<text x="126" y="94" ${DWG_S} text-anchor="end">cut long + scribe</text>
+<line x1="318" y1="212" x2="240" y2="330" ${DWG_L}/>
+<text x="236" y="346" ${DWG_S} text-anchor="end">toe-screws (or a small angle bracket) into the scab</text>
+<line x1="520" y1="212" x2="580" y2="150" ${DWG_L}/>
+<text x="584" y="140" ${DWG_S} text-anchor="end" >right bay’s spine lands at a</text>
+<text x="584" y="156" ${DWG_S} text-anchor="end">different height — that’s the jitter</text>
+<line x1="368" y1="352" x2="440" y2="392" ${DWG_L}/>
+<text x="444" y="396" ${DWG_S}>through-screws clamp scab + web + scab</text>
+<text x="360" y="420" ${DWG_S} text-anchor="middle">dashed = the panel seam line each spine backs</text>
+</svg>`},
+{t:'Rib seam — a bay line in plan', c:'Plan section at a bay line, viewed from above. Ease the web’s front edge to the fold with a block plane at dry fit.', svg:`
+<svg viewBox="0 0 720 460" xmlns="http://www.w3.org/2000/svg">
+<text x="300" y="40" ${DWG_T} text-anchor="middle">climber side</text>
+<path d="M292 50 L300 62 L308 50" fill="none" ${DWG_L} stroke-width="1.5"/>
+<g fill="var(--dwg-exist)" stroke="var(--c-baseline)" stroke-width="1">
+<rect x="90" y="300" width="540" height="15"/>
+<rect x="337.5" y="315" width="45" height="105"/>
+</g>
+<rect x="321.5" y="255" width="77" height="45" fill="var(--dwg-lumber)" stroke="var(--c-ink)" stroke-width="1.5"/>
+<g fill="var(--dwg-lumber)" stroke="var(--c-ink)" stroke-width="1.5">
+<g transform="translate(360,120) rotate(6)"><path d="M8.5 18 L85.5 18 L85.5 51 L12 51 Z"/></g>
+<g transform="translate(360,120) scale(-1,1) rotate(6)"><path d="M8.5 18 L85.5 18 L85.5 51 L12 51 Z"/></g>
+</g>
+<g fill="var(--dwg-ply)" stroke="var(--c-ink)" stroke-width="1.5">
+<rect x="351.75" y="137" width="16.5" height="160"/>
+<g transform="translate(360,120) rotate(6)"><path d="M0 0 L250 0 L250 17 L1.8 17 Z"/></g>
+<g transform="translate(360,120) scale(-1,1) rotate(6)"><path d="M0 0 L250 0 L250 17 L1.8 17 Z"/></g>
+</g>
+<g transform="translate(360,120) rotate(6)"><line x1="45" y1="-5" x2="45" y2="45" ${DWG_SCREW} stroke-width="2"/></g>
+<g transform="translate(360,120) scale(-1,1) rotate(6)"><line x1="45" y1="-5" x2="45" y2="45" ${DWG_SCREW} stroke-width="2"/></g>
+<line x1="305" y1="155" x2="415" y2="155" ${DWG_SCREW} stroke-width="2"/>
+<line x1="305" y1="149" x2="305" y2="161" ${DWG_SCREW} stroke-width="2.5"/>
+<line x1="372" y1="288" x2="372" y2="404" ${DWG_SCREW} stroke-width="2"/>
+<line x1="366" y1="288" x2="378" y2="288" ${DWG_SCREW} stroke-width="2.5"/>
+<line x1="354" y1="116" x2="262" y2="80" ${DWG_L}/>
+<text x="258" y="74" ${DWG_S} text-anchor="end">fold at the bay line — same γ/2 bevel rules</text>
+<line x1="362" y1="230" x2="470" y2="252" ${DWG_L}/>
+<text x="474" y="256" ${DWG_S}>¾″ ply rib web — carries the seam to wall + floor</text>
+<line x1="430" y1="150" x2="524" y2="118" ${DWG_L}/>
+<text x="528" y="112" ${DWG_S}>2×4 scab each side, flat on the panel back</text>
+<line x1="303" y1="158" x2="222" y2="188" ${DWG_L}/>
+<text x="218" y="196" ${DWG_S} text-anchor="end">through-screws clamp scab + web + scab</text>
+<line x1="330" y1="312" x2="230" y2="288" ${DWG_L}/>
+<text x="226" y="284" ${DWG_S} text-anchor="end">back chord — wall screws through drywall into the stud</text>
+<line x1="180" y1="308" x2="140" y2="368" ${DWG_L}/>
+<text x="138" y="384" ${DWG_S} text-anchor="end">drywall stays</text>
+<line x1="376" y1="392" x2="468" y2="392" ${DWG_L}/>
+<text x="472" y="396" ${DWG_S}>existing stud — rib lands on stud center</text>
+</svg>`},
+{t:'Back chord — the wall connection', c:'Plan section at the wall end of one rib. Lap the same side at every rib; the steepest ribs get a second chord or a ply gusset on the other side.', svg:`
+<svg viewBox="0 0 720 440" xmlns="http://www.w3.org/2000/svg">
+<text x="300" y="40" ${DWG_T} text-anchor="middle">climber side</text>
+<path d="M292 50 L300 62 L308 50" fill="none" ${DWG_L} stroke-width="1.5"/>
+<g fill="var(--dwg-exist)" stroke="var(--c-baseline)" stroke-width="1">
+<rect x="120" y="300" width="480" height="15"/>
+<rect x="337.5" y="315" width="45" height="105"/>
+</g>
+<rect x="307.5" y="255" width="105" height="45" fill="var(--dwg-lumber)" stroke="var(--c-ink)" stroke-width="1.5"/>
+<rect x="412.5" y="62" width="22.5" height="238" fill="var(--dwg-ply)" stroke="var(--c-ink)" stroke-width="1.5"/>
+<path d="M416 58 L423.75 46 L431.5 58" fill="none" ${DWG_L} stroke-width="1.5"/>
+<line x1="400" y1="277" x2="447" y2="277" ${DWG_SCREW} stroke-width="2"/>
+<line x1="447" y1="271" x2="447" y2="283" ${DWG_SCREW} stroke-width="2.5"/>
+<line x1="350" y1="250" x2="350" y2="395" ${DWG_SCREW} stroke-width="2"/>
+<line x1="344" y1="250" x2="356" y2="250" ${DWG_SCREW} stroke-width="2.5"/>
+<line x1="424" y1="150" x2="516" y2="128" ${DWG_L}/>
+<text x="520" y="122" ${DWG_S}>¾″ ply web, running back to the drywall —</text>
+<text x="520" y="138" ${DWG_S}>it laps the chord’s side face</text>
+<line x1="449" y1="279" x2="516" y2="310" ${DWG_L}/>
+<text x="520" y="314" ${DWG_S}>screws through web into chord edge, 12″ o.c.</text>
+<text x="520" y="330" ${DWG_S}>full height — shear-loaded for gravity and peel</text>
+<line x1="310" y1="268" x2="232" y2="228" ${DWG_L}/>
+<text x="228" y="206" ${DWG_S} text-anchor="end">2×4 back chord, 3½″ face on the drywall,</text>
+<text x="228" y="222" ${DWG_S} text-anchor="end">plumb and centered on the stud — it goes up first</text>
+<line x1="346" y1="370" x2="252" y2="392" ${DWG_L}/>
+<text x="248" y="396" ${DWG_S} text-anchor="end">3/8″ structural screw through chord + drywall</text>
+<text x="248" y="412" ${DWG_S} text-anchor="end">into the stud, top / middle / bottom</text>
+<line x1="382.5" y1="400" x2="452" y2="410" ${DWG_L}/>
+<text x="456" y="414" ${DWG_S}>existing stud</text>
+</svg>`},
+{t:'Floor connection', c:'Vertical section through a rib plane at the floor. Nothing untreated touches the slab; bearing carries gravity, and the plates pin down or tie back to the wall framing.', svg:`
+<svg viewBox="0 0 720 430" xmlns="http://www.w3.org/2000/svg">
+<g fill="var(--dwg-exist)" stroke="var(--c-baseline)" stroke-width="1">
+<rect x="40" y="330" width="650" height="60"/>
+<rect x="135" y="40" width="15" height="290"/>
+</g>
+<rect x="340" y="295" width="340" height="35" rx="8" fill="var(--c-sunken)" stroke="var(--c-muted)" stroke-dasharray="4 4"/>
+<text x="510" y="317" ${DWG_S} text-anchor="middle">4″+ padding over the landing zone</text>
+<g fill="var(--dwg-lumber)" stroke="var(--c-ink)" stroke-width="1.5">
+<rect x="150" y="313.5" width="35" height="15"/>
+<rect x="275" y="313.5" width="35" height="15"/>
+</g>
+<line x1="150" y1="329.5" x2="185" y2="329.5" stroke="var(--c-accent)" stroke-width="2"/>
+<line x1="275" y1="329.5" x2="310" y2="329.5" stroke="var(--c-accent)" stroke-width="2"/>
+<rect x="150" y="40" width="15" height="273.5" fill="none" ${DWG_L} stroke-width="1.2" stroke-dasharray="5 4"/>
+<g fill="var(--dwg-ply)" stroke="var(--c-ink)" stroke-width="1.5">
+<path d="M152 40 L341 40 L303 313.5 L152 313.5 Z"/>
+<path d="M303 313.5 L310.5 313.5 L348.5 40 L341 40 Z"/>
+</g>
+<path d="M285 300 L285 313.5 L298 313.5" fill="none" ${DWG_SCREW} stroke-width="2.2"/>
+<line x1="175" y1="306" x2="175" y2="360" ${DWG_SCREW} stroke-width="2"/>
+<line x1="292" y1="306" x2="292" y2="360" ${DWG_SCREW} stroke-width="2"/>
+<line x1="230" y1="200" x2="424" y2="140" ${DWG_L}/>
+<text x="428" y="136" ${DWG_S}>¾″ ply rib web — bottom edge cut 1½″ up,</text>
+<text x="428" y="152" ${DWG_S}>bearing on both plates, air over the slab between</text>
+<line x1="160" y1="110" x2="248" y2="66" ${DWG_L}/>
+<text x="252" y="62" ${DWG_S}>back chord (behind the web), landing on the sleeper</text>
+<line x1="160" y1="323" x2="82" y2="288" ${DWG_L}/>
+<text x="78" y="284" ${DWG_S} text-anchor="end">PT wall sleeper</text>
+<line x1="300" y1="318" x2="448" y2="238" ${DWG_L}/>
+<text x="452" y="234" ${DWG_S}>PT face plate — takes the skin’s beveled bottom edge</text>
+<line x1="326" y1="190" x2="470" y2="178" ${DWG_L}/>
+<text x="474" y="174" ${DWG_S}>skin — floor bevel from its cut sheet</text>
+<line x1="178" y1="330" x2="118" y2="366" ${DWG_L}/>
+<text x="114" y="380" ${DWG_S} text-anchor="end">sill seal under the PT</text>
+<line x1="292" y1="354" x2="410" y2="392" ${DWG_L}/>
+<text x="414" y="396" ${DWG_S}>Tapcon / powder pin — optional if plates tie to the wall framing</text>
+<line x1="288" y1="298" x2="380" y2="272" ${DWG_L}/>
+<text x="384" y="270" ${DWG_S}>angle bracket or toe-screws, web to each plate</text>
+<text x="126" y="66" ${DWG_S} text-anchor="end">existing wall</text>
+<text x="620" y="360" ${DWG_S} text-anchor="middle">garage slab</text>
+</svg>`},
+{t:'Rib splice — walls over 96″', c:'One splice per rib: square butt + glue, ¾″ ply gusset ~24″ each side, middle third of the height, ≥8″ off node creases, staggered rib to rib.', svg:`
+<svg viewBox="0 0 720 410" xmlns="http://www.w3.org/2000/svg">
+<path d="M70 364 L88 364 L130 258 L142 150 L160 40 L70 40 Z" fill="var(--dwg-ply)" stroke="var(--c-ink)" stroke-width="1.5"/>
+<line x1="70" y1="220" x2="135" y2="220" stroke="var(--c-accent)" stroke-width="2.5" stroke-dasharray="7 5"/>
+<rect x="74" y="190" width="52" height="60" fill="var(--ramp-1)" fill-opacity="0.22" stroke="var(--c-ink)" stroke-width="1.4"/>
+<g fill="var(--c-ink2)">
+<circle cx="84" cy="200" r="2"/><circle cx="100" cy="200" r="2"/><circle cx="116" cy="200" r="2"/>
+<circle cx="84" cy="216" r="2"/><circle cx="100" cy="216" r="2"/><circle cx="116" cy="216" r="2"/>
+<circle cx="84" cy="228" r="2"/><circle cx="100" cy="228" r="2"/><circle cx="116" cy="228" r="2"/>
+<circle cx="84" cy="242" r="2"/><circle cx="100" cy="242" r="2"/><circle cx="116" cy="242" r="2"/>
+</g>
+<circle cx="130" cy="258" r="3.5" fill="var(--c-accent)"/>
+<circle cx="142" cy="150" r="3.5" fill="var(--c-accent)"/>
+<line x1="52" y1="148" x2="52" y2="256" ${DWG_L} stroke-dasharray="3 4"/>
+<text x="44" y="202" ${DWG_S} text-anchor="middle" transform="rotate(-90 44 202)">middle third</text>
+<line x1="137" y1="220" x2="196" y2="200" ${DWG_L}/>
+<text x="200" y="196" ${DWG_S}>splice: square butt joint + glue</text>
+<line x1="126" y1="240" x2="200" y2="252" ${DWG_L}/>
+<text x="204" y="248" ${DWG_S}>¾″ ply gusset ~24″, glued + screwed both sides</text>
+<text x="204" y="264" ${DWG_S}>(one side where the chord interferes)</text>
+<line x1="132" y1="260" x2="204" y2="300" ${DWG_L}/>
+<text x="208" y="304" ${DWG_S}>keep ≥8″ off the node creases — the seam scabs land there</text>
+<text x="536" y="34" ${DWG_S} text-anchor="middle">adjacent ribs</text>
+<g fill="var(--dwg-ply)" stroke="var(--c-ink)" stroke-width="1.2">
+<path d="M420 364 L438 364 L462 40 L420 40 Z"/>
+<path d="M520 364 L538 364 L562 40 L520 40 Z"/>
+<path d="M620 364 L638 364 L662 40 L620 40 Z"/>
+</g>
+<line x1="420" y1="235" x2="450" y2="235" stroke="var(--c-accent)" stroke-width="2.2" stroke-dasharray="6 4"/>
+<line x1="520" y1="190" x2="551" y2="190" stroke="var(--c-accent)" stroke-width="2.2" stroke-dasharray="6 4"/>
+<line x1="620" y1="250" x2="649" y2="250" stroke="var(--c-accent)" stroke-width="2.2" stroke-dasharray="6 4"/>
+<text x="536" y="392" ${DWG_S} text-anchor="middle">stagger splice heights 12–16″ rib to rib — no line continues across the wall</text>
+</svg>`},
+{t:'Top connection — the joint that resists peel', c:'Section at the top of a steep bay. Tie every other rib on bays past ~12°; where the ceiling can’t be used, substitute 2×4 kickers from the rib tops back to the wall base.', svg:`
+<svg viewBox="0 0 720 430" xmlns="http://www.w3.org/2000/svg">
+<g fill="var(--dwg-exist)" stroke="var(--c-baseline)" stroke-width="1">
+<rect x="40" y="76" width="650" height="12"/>
+<rect x="430" y="16" width="22" height="60"/>
+<rect x="560" y="16" width="22" height="60"/>
+<rect x="135" y="88" width="15" height="342"/>
+</g>
+<g fill="var(--dwg-lumber)" stroke="var(--c-ink)" stroke-width="1.5">
+<rect x="418" y="88" width="176" height="15"/>
+<rect x="424" y="103" width="15" height="42"/>
+<rect x="420" y="145" width="35" height="15"/>
+</g>
+<line x1="441" y1="110" x2="441" y2="44" ${DWG_SCREW} stroke-width="2"/>
+<line x1="571" y1="110" x2="571" y2="44" ${DWG_SCREW} stroke-width="2"/>
+<rect x="152" y="88" width="15" height="342" fill="none" ${DWG_L} stroke-width="1.2" stroke-dasharray="5 4"/>
+<path d="M152 160 L455 160 L398 430 L152 430 Z" fill="var(--dwg-ply)" stroke="var(--c-ink)" stroke-width="1.5"/>
+<path d="M458 140 L465.5 140 L404.5 430 L397 430 Z" fill="var(--dwg-ply)" stroke="var(--c-ink)" stroke-width="1.5"/>
+<rect x="154" y="132" width="302" height="8" fill="none" ${DWG_L} stroke-width="1.2" stroke-dasharray="5 4"/>
+<path d="M424 168 L424 160 L436 160" fill="none" ${DWG_SCREW} stroke-width="2.2"/>
+<path d="M439 112 L448 112 L448 104" fill="none" ${DWG_SCREW} stroke-width="2.2"/>
+<line x1="582" y1="40" x2="612" y2="32" ${DWG_L}/>
+<text x="616" y="36" ${DWG_S}>ceiling joists</text>
+<line x1="540" y1="98" x2="598" y2="140" ${DWG_L}/>
+<text x="602" y="144" ${DWG_S}>2×6 block lagged across two joists,</text>
+<text x="602" y="160" ${DWG_S}>through the ceiling drywall</text>
+<line x1="424" y1="118" x2="256" y2="114" ${DWG_L}/>
+<text x="252" y="118" ${DWG_S} text-anchor="end">2×4 tie — takes the peel tension</text>
+<line x1="455" y1="153" x2="552" y2="196" ${DWG_L}/>
+<text x="556" y="200" ${DWG_S}>top plate — segments + plan miters</text>
+<text x="556" y="216" ${DWG_S}>from the plate schedule</text>
+<line x1="300" y1="162" x2="252" y2="238" ${DWG_L}/>
+<text x="248" y="252" ${DWG_S} text-anchor="end">web top edge cut 1½″ down —</text>
+<text x="248" y="268" ${DWG_S} text-anchor="end">plate bears, angles tie it</text>
+<line x1="463" y1="164" x2="574" y2="248" ${DWG_L}/>
+<text x="578" y="252" ${DWG_S}>skin top — bevel level, or run to the cap</text>
+<line x1="280" y1="134" x2="212" y2="106" ${DWG_L}/>
+<text x="208" y="100" ${DWG_S} text-anchor="end">optional ply cap closes the cavity</text>
+<line x1="162" y1="280" x2="242" y2="330" ${DWG_L}/>
+<text x="246" y="334" ${DWG_S}>back chord continues to the top</text>
+<text x="126" y="120" ${DWG_S} text-anchor="end">existing wall</text>
+</svg>`},
+{t:'Corner rib — the wrap', c:'Plan at the wrap corner. The corner rib lies on the 45° bisector; its depth is measured from each wall, its profile card is in Structure, and everything else follows the standard rib rules.', svg:`
+<svg viewBox="0 0 720 440" xmlns="http://www.w3.org/2000/svg">
+<g fill="var(--dwg-exist)" stroke="var(--c-baseline)" stroke-width="1">
+<rect x="60" y="330" width="560" height="15"/>
+<rect x="605" y="60" width="15" height="270"/>
+<rect x="575" y="345" width="45" height="45"/>
+<rect x="620" y="285" width="45" height="45"/>
+</g>
+<g fill="var(--dwg-lumber)" stroke="var(--c-ink)" stroke-width="1.4">
+<rect x="558" y="315" width="35" height="15"/>
+<path d="M579.9 298.5 L590.5 287.9 L449.1 146.5 L438.5 157.1 Z"/>
+<path d="M573.5 304.9 L562.9 315.5 L421.5 174.1 L432.1 163.5 Z"/>
+</g>
+<path d="M608.2 326.8 L438.2 156.8 L431.8 163.2 L601.8 333.2 Z" fill="var(--dwg-ply)" stroke="var(--c-ink)" stroke-width="1.4"/>
+<g fill="var(--dwg-ply)" stroke="var(--c-ink)" stroke-width="1.4">
+<path d="M60 162 L440 162 L440 169.5 L60 169.5 Z"/>
+<path d="M440 60 L447.5 60 L447.5 169.5 L440 169.5 Z"/>
+</g>
+<line x1="575" y1="308" x2="575" y2="372" ${DWG_SCREW} stroke-width="2"/>
+<line x1="505" y1="250" x2="336" y2="296" ${DWG_L}/>
+<text x="332" y="300" ${DWG_S} text-anchor="end">corner rib on the 45° bisector</text>
+<line x1="575" y1="322" x2="430" y2="392" ${DWG_L}/>
+<text x="426" y="406" ${DWG_S} text-anchor="end">back chord in the corner nook — structural screws</text>
+<text x="426" y="422" ${DWG_S} text-anchor="end">reach framing in both walls</text>
+<line x1="598" y1="362" x2="520" y2="428" ${DWG_L}/>
+<text x="516" y="432" ${DWG_S} text-anchor="end">corner stud pack — best anchorage on the wall</text>
+<line x1="443" y1="164" x2="300" y2="92" ${DWG_L}/>
+<text x="296" y="72" ${DWG_S} text-anchor="end">skins chamfer across the corner — plan fold</text>
+<text x="296" y="88" ${DWG_S} text-anchor="end">+ γ/2 bevels from the seam schedule</text>
+<line x1="500" y1="212" x2="586" y2="152" ${DWG_L}/>
+<text x="590" y="148" ${DWG_S} text-anchor="end">scab each side, same as any rib</text>
+<text x="250" y="245" ${DWG_S}>stemming dihedral</text>
+</svg>`}
+];
+function refreshDetails(){
+  const el=document.getElementById('details');
+  if(el.dataset.built) return;
+  el.dataset.built='1';
+  el.innerHTML=`<p class="note" style="margin-top:0">Section drawings of every joint family in the build. Tan = plywood, green = 2×4 lumber, gray = the existing house. Dimensions and angles come from the cut sheets; these show how the parts go together.</p>`
+    + DETAILS.map(d=>`<div class="panelcard" style="max-width:780px;margin:0 0 16px"><h4>${d.t}</h4>${d.svg}<div class="mini">${d.c}</div></div>`).join('');
+}
+
+/* =============== stats, legend, chips =============== */
+function refreshStats(){
+  const st=M.stats;
+  const sheetsPh=Math.ceil(st.areaPh*1.18/4608);
+  document.getElementById('statscope').textContent='· phase 1 / full wall';
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="v mono">${(st.areaPh/144).toFixed(0)} / ${(st.areaAll/144).toFixed(0)} ft²</div><div class="k">climbing surface</div></div>
+    <div class="stat"><div class="v mono">${st.nPh} / ${st.nAll}</div><div class="k">facet panels</div></div>
+    <div class="stat"><div class="v mono">${st.tnPh} / ${st.tnAll}</div><div class="k">t-nuts</div></div>
+    <div class="stat"><div class="v mono">${fmtDeg(st.minTh)} → ${fmtDeg(st.maxTh)}</div><div class="k">steepness range · max reach-out ${fmtIn(st.maxD)}</div></div>`;
+  // legend
+  let lg='<div class="lg-title">Steepness (from vertical)</div>';
+  const counts=CLASSES.map(()=>0);
+  M.facets.forEach(f=>counts[f.cls]++);
+  CLASSES.forEach((c,i)=>{
+    lg+=`<div class="lg-row"><span class="sw" style="background:var(--ramp-${i})"></span>${c.name}<span class="rng">${c.rng} · ${counts[i]}</span></div>`;
+  });
+  document.getElementById('legend').innerHTML=lg;
+  // bay chips
+  let bc='';
+  for(let i=0;i<M.profiles.length-1;i++){
+    const fs=M.facets.filter(f=>f.bay===i);
+    const avg=fs.reduce((a,f)=>a+f.theta*f.area,0)/fs.reduce((a,f)=>a+f.area,0);
+    const cls=classOf(avg);
+    bc+=`<span class="baychip ${i<P.phaseBays?'inphase':''}"><span class="dot" style="background:var(--ramp-${cls})"></span>B${i+1} <span class="mono">${fmtDeg(avg)}</span></span>`;
+  }
+  document.getElementById('baychips').innerHTML=bc;
+  document.getElementById('plansvg').innerHTML=planSVG();
+}
+
+/* =============== controls =============== */
+const CTRL_GROUPS=[
+ {name:'Garage dimensions', open:true, items:[
+   {k:'L',label:'Wall length',min:96,max:360,step:6,fmt:v=>fmtFtIn(v)},
+   {k:'H',label:'Wall height',min:84,max:144,step:2,fmt:v=>fmtFtIn(v)},
+   {k:'wrap',label:'Wrap onto back wall',min:0,max:96,step:12,fmt:v=>v?fmtFtIn(v):'none'},
+   {k:'bay',label:'Bay width (rib spacing)',min:24,max:56,step:8,fmt:v=>v+'"'},
+   {k:'flip',label:'Mirror layout (door end on right)',check:true},
+ ]},
+ {name:'Clearance & zones', open:true, items:[
+   {k:'doorLen',label:'Door-access zone length',min:48,max:192,step:12,fmt:v=>fmtFtIn(v), hint:'stays shallow & flat for vehicle doors'},
+   {k:'capDoor',label:'Max depth in door zone',min:6,max:16,step:0.5,fmt:v=>v+'"'},
+   {k:'capBack',label:'Max depth at back',min:16,max:56,step:2,fmt:v=>v+'"'},
+   {k:'trans',label:'Transition length',min:24,max:144,step:12,fmt:v=>fmtFtIn(v)},
+ ]},
+ {name:'Difficulty ramp', open:true, items:[
+   {k:'thStart',label:'Angle at door end',min:-10,max:5,step:0.5,fmt:v=>fmtDeg(v), hint:'negative = slab (easier)'},
+   {k:'thEnd',label:'Angle at far end',min:5,max:30,step:0.5,fmt:v=>fmtDeg(v)},
+   {k:'ease',label:'Ramp shape',min:0.7,max:2.5,step:0.05,fmt:v=>v.toFixed(2), hint:'>1 back-loads the difficulty'},
+ ]},
+ {name:'Facet texture', open:false, items:[
+   {k:'rows',label:'Facet rows',min:2,max:4,step:1,fmt:v=>v},
+   {k:'jitD',label:'Depth variation',min:0,max:5,step:0.25,fmt:v=>'±'+v+'"'},
+   {k:'jitY',label:'Row-height variation',min:0,max:12,step:0.5,fmt:v=>'±'+v+'"'},
+   {k:'seed',label:'Seed',min:1,max:200,step:1,fmt:v=>'#'+v, seed:true},
+ ]},
+ {name:'Build & hardware', open:false, items:[
+   {k:'phaseBays',label:'Phase 1 = first … bays',min:1,max:8,step:1,fmt:v=>v+' bays'},
+   {k:'tnut',label:'T-nut grid',min:6,max:10,step:1,fmt:v=>v+'"'},
+   {k:'inset',label:'T-nut edge inset',min:2,max:4,step:0.25,fmt:v=>v+'"'},
+   {k:'maxSpan',label:'Max skin span (stiffener rule)',min:16,max:36,step:2,fmt:v=>v+'"', hint:'≤24" for adult use; kids-only can go looser'},
+ ]},
+ {name:'View', open:false, items:[
+   {k:'showFrame',label:'Framing skeleton (hide skins)',check:true},
+   {k:'showCar',label:'Show vehicle envelope',check:true},
+   {k:'showTnuts',label:'Show t-nut grid in 3D',check:true},
+   {k:'dimPhase',label:'Dim bays outside phase 1',check:true},
+ ]},
+];
+function buildControls(){
+  const panel=document.getElementById('panel');
+  panel.innerHTML='';
+  CTRL_GROUPS.forEach(g=>{
+    const d=document.createElement('details');
+    d.className='grp'; d.open=g.open;
+    d.innerHTML=`<summary>${g.name}</summary>`;
+    g.items.forEach(it=>{
+      const wrap=document.createElement('div');
+      if(it.check){
+        wrap.className='ctl checkbox';
+        wrap.innerHTML=`<input type="checkbox" id="c_${it.k}" ${P[it.k]?'checked':''}><label for="c_${it.k}">${it.label}</label>`;
+        wrap.querySelector('input').addEventListener('change',e=>{ P[it.k]=e.target.checked?1:0; if(it.k==='flip') resetCam('iso'); scheduleRebuild(it.k==='showCar'||it.k==='showTnuts'||it.k==='dimPhase'||it.k==='showFrame'); });
+      } else {
+        wrap.className='ctl';
+        wrap.innerHTML=`<div class="lab"><label for="c_${it.k}">${it.label}</label><output id="o_${it.k}" class="mono">${it.fmt(P[it.k])}</output></div>
+          <div class="${it.seed?'seedrow':''}">
+            <input type="range" id="c_${it.k}" min="${it.min}" max="${it.max}" step="${it.step}" value="${P[it.k]}">
+            ${it.seed?'<button class="btn small" id="reroll" title="new seed">🎲</button>':''}
+          </div>
+          ${it.hint?`<div class="hint">${it.hint}</div>`:''}`;
+        const inp=wrap.querySelector('input');
+        inp.addEventListener('input',()=>{ P[it.k]=parseFloat(inp.value); document.getElementById('o_'+it.k).textContent=it.fmt(P[it.k]); scheduleRebuild(false); });
+        if(it.seed){ wrap.querySelector('#reroll').addEventListener('click',()=>{ P.seed=1+Math.floor(Math.random()*199); inp.value=P.seed; document.getElementById('o_'+it.k).textContent=it.fmt(P.seed); scheduleRebuild(false); }); }
+      }
+      d.appendChild(wrap);
+    });
+    panel.appendChild(d);
+  });
+}
+function syncControls(){
+  CTRL_GROUPS.forEach(g=>g.items.forEach(it=>{
+    const el=document.getElementById('c_'+it.k);
+    if(!el) return;
+    if(it.check){ el.checked=!!P[it.k]; }
+    else { el.value=P[it.k]; const o=document.getElementById('o_'+it.k); if(o) o.textContent=it.fmt(P[it.k]); }
+  }));
+}
+
+/* =============== tabs =============== */
+let activeTab='inspector';
+const refreshers={inspector:refreshInspector, cutsheets:refreshCutsheets, structure:refreshStructure, details:refreshDetails, materials:refreshMaterials, volumes:refreshVolumes, buildnotes:refreshNotes};
+function showTab(name){
+  activeTab=name;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
+  document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('active',p.id===name));
+  refreshers[name]&&refreshers[name]();
+}
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>showTab(t.dataset.tab)));
+
+/* =============== rebuild loop =============== */
+let rebuildTimer=null;
+function scheduleRebuild(viewOnly){
+  clearTimeout(rebuildTimer);
+  rebuildTimer=setTimeout(()=>{ rebuild(viewOnly); },60);
+}
+function rebuild(viewOnly){
+  if(!viewOnly){
+    // clamp phase slider max to bay count
+    const nb=Math.max(2,Math.round(P.L/P.bay)) + (P.wrap>=12?Math.max(1,Math.round(P.wrap/P.bay)):0);
+    P.phaseBays=clamp(P.phaseBays,1,nb);
+    const ps=document.getElementById('c_phaseBays'); if(ps){ ps.max=nb; ps.value=P.phaseBays; }
+    if(selId>=0) selId=-1;
+    M=buildModel();
+    refreshStats();
+    refreshers[activeTab]&&refreshers[activeTab]();
+    saveHash();
+  }
+  render();
+}
+
+/* =============== spec export / hash / buttons =============== */
+function saveHash(){
+  try{
+    const h='#p='+encodeURIComponent(btoa(JSON.stringify(P)));
+    history.replaceState(null,'',h);
+  }catch(e){}
+}
+function loadHash(){
+  try{
+    const m=location.hash.match(/p=([^&]+)/);
+    if(m){ const o=JSON.parse(atob(decodeURIComponent(m[1]))); Object.keys(DEFAULTS).forEach(k=>{ if(typeof o[k]==='number') P[k]=o[k]; }); }
+  }catch(e){}
+}
+document.getElementById('btnReset').addEventListener('click',()=>{ P=Object.assign({},DEFAULTS); syncControls(); rebuild(false); resetCam('iso'); render(); });
+document.getElementById('btnPrint').addEventListener('click',()=>{ showTab('cutsheets'); setTimeout(()=>window.print(),80); });
+document.getElementById('btnSpec').addEventListener('click',()=>{
+  const spec={
+    generated:'garage-climbing-wall parametric designer rev A',
+    units:'inches / degrees',
+    params:P,
+    facets:M.facets.map(f=>({
+      id:f.label, steepnessDeg:+f.theta.toFixed(2), areaFt2:+(f.area/144).toFixed(2),
+      verts:f.vids.map(i=>{const v=M.verts[i];return [+v.x.toFixed(3),+v.y.toFixed(3),+v.z.toFixed(3)];}),
+      unfold:f.unf.pts.map(p=>[+p.x.toFixed(3),+p.y.toFixed(3)]),
+      tnuts:f.tnuts.length,
+      stiffenersIn:f.stiff.map(s=>+s.len.toFixed(2))
+    })),
+    seams:M.edges.filter(e=>e.type==='seam').map(e=>({
+      panels:e.fids.map(id=>M.facets[id].label), lengthIn:+e.len.toFixed(2),
+      joint:e.joint, foldDeg:e.joint==='flat'?0:+e.gamma.toFixed(2), bevelEachDeg:e.joint==='flat'?0:+(e.gamma/2).toFixed(2)
+    }))
+  };
+  const tab=document.getElementById('buildnotes');
+  showTab('buildnotes');
+  let box=document.getElementById('specbox');
+  if(!box){
+    const h=document.createElement('div');
+    h.innerHTML='<h2 class="sec">Spec JSON <span class="mini">(select-all &amp; copy — feeds CNC, CAD, or a future session)</span></h2><textarea id="specbox" readonly></textarea>';
+    tab.prepend(h);
+    box=document.getElementById('specbox');
+  }
+  box.value=JSON.stringify(spec,null,1);
+  box.focus(); box.select();
+  try{ navigator.clipboard&&navigator.clipboard.writeText(box.value); }catch(e){}
+});
+
+/* =============== boot =============== */
+function boot(){
+  loadHash();
+  buildControls();
+  M=buildModel();
+  resetCam('iso');
+  refreshStats();
+  refreshInspector();
+  render();
+  new ResizeObserver(()=>render()).observe(document.getElementById('viewwrap'));
+  const mq=window.matchMedia('(prefers-color-scheme: dark)');
+  (mq.addEventListener?mq.addEventListener.bind(mq):mq.addListener.bind(mq))('change',()=>setTimeout(render,30));
+}
+try{ boot(); }
+catch(err){
+  const d=document.createElement('div');
+  d.style.cssText='padding:20px;color:#c00;font-family:monospace;white-space:pre-wrap';
+  d.textContent='Designer failed to start: '+(err&&err.stack||err);
+  document.body.prepend(d);
+  console.error(err);
+}
+})();
+</script>
+
+</body>
+</html>
